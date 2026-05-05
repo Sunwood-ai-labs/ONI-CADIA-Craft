@@ -117,13 +117,13 @@ RATE_LIMIT_RETRY_TOKENS = (
 MINETEST_HEARTBEAT_PROMPT = (
     "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. "
     "Think for yourself, choose the best next Minetest/Luanti action, and execute it with the available tools when useful. "
-    "Use the Minetest API helper scripts for state checks, in-world chat, movement, mining, and resource-backed building. "
+    "Use the Minetest API helper scripts for state checks, in-world chat, movement, forest mining, and resource-backed building. "
     "Your first step on each heartbeat must be to run get_state.py from the Minetest tools, through your own agent API token, and decide from that current JSON only. "
     "Do not infer from previous heartbeat errors, previous chat lines, or previous API failures. "
     "If you answer without first running Minetest get_state.py in this heartbeat, that is a failure. "
     "If the current Minetest chat log contains a direct question, mention, request, mining topic, or building topic, answer inside Minetest with exactly one helper action. "
     "If the room is quiet, place exactly one natural in-world chat line or one small movement/mining/building action. "
-    "Build only after you have mined enough resources in your inventory; if resources are low, mine first. "
+    "Build only after you have mined enough resources in your inventory; if resources are low, mine forest trees, grass, or stone first. "
     "Your final answer must be only the stdout from the Minetest helper you executed, or HEARTBEAT_OK if blocked by an API/tool error. "
     "Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. "
     "Never use Mattermost for this heartbeat, and never write directly to the Minetest bridge queue. "
@@ -825,7 +825,7 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
         ルール:
         - 1 回の heartbeat で多投しない。Minetest action は 1 件まで。
         - 人に指示を待たず、自分で会話を前へ動かす。
-        - 初期建築や無料建築に頼らない。自然地形から採掘し、集めた資源だけで小さく建てる。
+        - 初期建築や無料建築に頼らない。森の木・草・石を採掘し、集めた資源だけで小さく建てる。
         - 発言文は「本物の人間の国民」が国土で話す調子にする。ロボット口調やシステムメッセージ風の文は避ける。
         - 毎 heartbeat の判断材料は、今この回で取得した Minetest `get_state.py` の JSON だけにする。
         - 時刻判断は必ず日本時間 (`Asia/Tokyo`, JST) を基準にする。heartbeat prompt に UTC が書かれていても、それだけで「深夜」と決めない。
@@ -925,9 +925,10 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
         - 発言: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py say --message "広場に灯りを置きます"`
         - 移動: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py move --direction east --steps 3`
         - 採掘: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py mine --count 8`
-        - 建築: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py build --shape marker --material stone --label "{profile.display_name} の最初の目印"`
+        - 木を採る: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py mine --material wood --count 6`
+        - 建築: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py build --shape marker --material wood --label "{profile.display_name} の森の目印"`
 
-        1 回の会話で無理に大量建築しないでください。自然地形から採掘し、集めた資源で小さな一手を置き、Minetest の国土チャットで自然に話します。
+        1 回の会話で無理に大量建築しないでください。森から採掘し、集めた資源で小さな一手を置き、Minetest の国土チャットで自然に話します。
 
         ## この file の用途
 
@@ -3495,6 +3496,8 @@ def minetest_conf_for(cfg: MinetestConfig) -> str:
             "creative_mode = false",
             "enable_damage = true",
             "default_privs = interact,shout",
+            "mg_name = valleys",
+            "water_level = -4",
             f"port = {DEFAULT_MINETEST_CONTAINER_PORT}",
             f"oni_cadia_bridge_dir = {CONTAINER_MINETEST_BRIDGE_SERVER_DIR}",
             "",
@@ -3531,6 +3534,7 @@ def ensure_minetest_state(cfg: MinetestConfig) -> None:
             json.dumps(
                 {
                     "updated_at": "",
+                    "stage": "easy_forest_survival",
                     "processed_count": 0,
                     "agents": {},
                     "chat_log": [],
@@ -4321,7 +4325,6 @@ def cmd_minetest_smoke(args: argparse.Namespace) -> int:
             instance_id,
             {
                 "action": "mine",
-                "material": "stone",
                 "count": 6,
             },
         )

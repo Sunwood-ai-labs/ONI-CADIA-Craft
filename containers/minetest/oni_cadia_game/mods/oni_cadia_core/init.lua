@@ -26,6 +26,7 @@ local citizen_stand_offset = 1.3
 local surface_search_min_y = -32
 local surface_search_max_y = 80
 local surface_search_radius = 96
+local forest_stage_name = "easy_forest_survival"
 
 local profiles = {
 	[1] = { username = "iori", name = "いおり", color = "#8fd3ff", origin = { x = -8, y = 3, z = 0 }, material = "oni_cadia_core:stone" },
@@ -59,6 +60,30 @@ minetest.register_node("oni_cadia_core:grass", {
 	groups = { crumbly = 3 },
 })
 
+minetest.register_node("oni_cadia_core:dirt", {
+	description = "ONI-CADIA Forest Dirt",
+	tiles = { texture("#6b4f2a") },
+	groups = { crumbly = 3, soil = 1 },
+})
+
+minetest.register_node("oni_cadia_core:dirt_with_grass", {
+	description = "ONI-CADIA Forest Floor",
+	tiles = { texture("#4d9f57"), texture("#6b4f2a"), texture("#5d7f39") },
+	groups = { crumbly = 3, soil = 1 },
+})
+
+minetest.register_node("oni_cadia_core:forest_grass", {
+	description = "ONI-CADIA Forest Grass",
+	drawtype = "plantlike",
+	tiles = { texture("#76b852") },
+	inventory_image = texture("#76b852"),
+	wield_image = texture("#76b852"),
+	paramtype = "light",
+	walkable = false,
+	buildable_to = true,
+	groups = { snappy = 3, flora = 1, grass = 1 },
+})
+
 minetest.register_node("oni_cadia_core:stone", {
 	description = "ONI-CADIA Stone",
 	tiles = { texture("#7d8794") },
@@ -69,6 +94,39 @@ minetest.register_node("oni_cadia_core:wood", {
 	description = "ONI-CADIA Wood",
 	tiles = { texture("#a66a3f") },
 	groups = { choppy = 2 },
+})
+
+minetest.register_node("oni_cadia_core:tree", {
+	description = "ONI-CADIA Forest Tree",
+	tiles = { texture("#7a4a28") },
+	groups = { tree = 1, choppy = 2 },
+})
+
+minetest.register_node("oni_cadia_core:leaves", {
+	description = "ONI-CADIA Forest Leaves",
+	drawtype = "allfaces_optional",
+	tiles = { texture("#2f7d3f") },
+	paramtype = "light",
+	walkable = false,
+	groups = { snappy = 3, leaves = 1, flora = 1 },
+})
+
+minetest.register_node("oni_cadia_core:water_source", {
+	description = "ONI-CADIA Forest Water",
+	drawtype = "liquid",
+	tiles = { texture("#3b82f6") },
+	special_tiles = { texture("#3b82f6") },
+	alpha = 160,
+	paramtype = "light",
+	walkable = false,
+	pointable = false,
+	diggable = false,
+	buildable_to = true,
+	liquidtype = "source",
+	liquid_alternative_source = "oni_cadia_core:water_source",
+	liquid_alternative_flowing = "oni_cadia_core:water_source",
+	liquid_viscosity = 1,
+	groups = { water = 3, liquid = 3 },
 })
 
 minetest.register_node("oni_cadia_core:glass", {
@@ -101,8 +159,12 @@ minetest.register_node("oni_cadia_core:light", {
 })
 
 minetest.register_alias("mapgen_stone", "oni_cadia_core:stone")
-minetest.register_alias("mapgen_water_source", "air")
-minetest.register_alias("mapgen_river_water_source", "air")
+minetest.register_alias("mapgen_dirt", "oni_cadia_core:dirt")
+minetest.register_alias("mapgen_dirt_with_grass", "oni_cadia_core:dirt_with_grass")
+minetest.register_alias("mapgen_tree", "oni_cadia_core:tree")
+minetest.register_alias("mapgen_leaves", "oni_cadia_core:leaves")
+minetest.register_alias("mapgen_water_source", "oni_cadia_core:water_source")
+minetest.register_alias("mapgen_river_water_source", "oni_cadia_core:water_source")
 
 local function round_coord(value)
 	return math.floor((tonumber(value) or 0) + 0.5)
@@ -370,6 +432,20 @@ local function is_walkable(pos)
 	return def.walkable ~= false
 end
 
+local function is_surface_ground(pos)
+	local node, def = node_and_def(pos)
+	if not node or node.name == "air" or node.name == "ignore" then
+		return false
+	end
+	if node.name == "oni_cadia_core:tree"
+		or node.name == "oni_cadia_core:leaves"
+		or node.name == "oni_cadia_core:forest_grass"
+		or node.name == "oni_cadia_core:water_source" then
+		return false
+	end
+	return def.walkable ~= false
+end
+
 local function is_open(pos)
 	local node, def = node_and_def(pos)
 	if not node or node.name == "ignore" then
@@ -389,7 +465,7 @@ local function surface_y_at(x, z)
 		{ x = px, y = surface_search_max_y + 8, z = pz }
 	)
 	for y = surface_search_max_y, surface_search_min_y, -1 do
-		if is_walkable({ x = px, y = y, z = pz })
+		if is_surface_ground({ x = px, y = y, z = pz })
 			and is_open({ x = px, y = y + 1, z = pz })
 			and is_open({ x = px, y = y + 2, z = pz }) then
 			return y
@@ -586,6 +662,7 @@ local function write_state()
 	local payload = {
 		updated_at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
 		bridge_dir = bridge_dir,
+		stage = forest_stage_name,
 		surface_mode = "natural",
 		surface_search_min_y = surface_search_min_y,
 		surface_search_max_y = surface_search_max_y,
@@ -773,6 +850,112 @@ local function set_node(pos, name)
 	minetest.set_node(target, { name = name })
 end
 
+local function forest_hash(x, z, seed)
+	local value = math.sin((x * 12.9898) + (z * 78.233) + (seed * 0.013)) * 43758.5453
+	return math.floor((value - math.floor(value)) * 10000)
+end
+
+local function generation_surface_y_at(x, z, min_y, max_y)
+	for y = max_y, min_y, -1 do
+		local name = minetest.get_node({ x = x, y = y, z = z }).name
+		if name ~= "air"
+			and name ~= "ignore"
+			and name ~= "oni_cadia_core:water_source"
+			and name ~= "oni_cadia_core:leaves"
+			and name ~= "oni_cadia_core:forest_grass"
+			and name ~= "oni_cadia_core:tree" then
+			return y, name
+		end
+	end
+	return nil, nil
+end
+
+local function generation_replaceable(pos)
+	local name = minetest.get_node(pos).name
+	if name == "air" or name == "ignore" or name == "oni_cadia_core:forest_grass" then
+		return true
+	end
+	local def = minetest.registered_nodes[name]
+	return def and def.buildable_to == true
+end
+
+local function place_forest_tree(x, y, z, height)
+	for dy = 1, height do
+		minetest.set_node({ x = x, y = y + dy, z = z }, { name = "oni_cadia_core:tree" })
+	end
+	local crown_y = y + height
+	for dx = -2, 2 do
+		for dz = -2, 2 do
+			for dy = -1, 2 do
+				if math.abs(dx) + math.abs(dz) + math.max(0, dy) <= 4 then
+					local leaf_pos = { x = x + dx, y = crown_y + dy, z = z + dz }
+					if generation_replaceable(leaf_pos) then
+						minetest.set_node(leaf_pos, { name = "oni_cadia_core:leaves" })
+					end
+				end
+			end
+		end
+	end
+end
+
+local function ensure_starter_forest()
+	local tree_offsets = {
+		{ x = -20, z = -2 }, { x = -14, z = -16 }, { x = -8, z = 18 },
+		{ x = 6, z = -18 }, { x = 12, z = 14 }, { x = 20, z = -8 },
+		{ x = 22, z = 6 }, { x = -24, z = 12 }, { x = 0, z = 24 },
+		{ x = 18, z = 22 }, { x = -18, z = -24 }, { x = 28, z = -22 },
+	}
+	for _, offset in ipairs(tree_offsets) do
+		local y = surface_y_at(offset.x, offset.z)
+		if y then
+			set_node({ x = offset.x, y = y, z = offset.z }, "oni_cadia_core:dirt_with_grass")
+			for depth = 1, 3 do
+				set_node({ x = offset.x, y = y - depth, z = offset.z }, "oni_cadia_core:dirt")
+			end
+			place_forest_tree(offset.x, y, offset.z, 5 + (math.abs(offset.x + offset.z) % 2))
+		end
+	end
+	for x = -28, 28, 2 do
+		for z = -28, 28, 2 do
+			if forest_hash(x, z, 77) < 1200 then
+				local y = surface_y_at(x, z)
+				if y and generation_replaceable({ x = x, y = y + 1, z = z }) then
+					set_node({ x = x, y = y + 1, z = z }, "oni_cadia_core:forest_grass")
+				end
+			end
+		end
+	end
+end
+
+minetest.register_on_generated(function(minp, maxp, blockseed)
+	if maxp.y < surface_search_min_y or minp.y > surface_search_max_y + 12 then
+		return
+	end
+	for x = minp.x, maxp.x do
+		for z = minp.z, maxp.z do
+			local y, top_name = generation_surface_y_at(x, z, math.max(minp.y, surface_search_min_y), math.min(maxp.y, surface_search_max_y))
+			if y and top_name ~= "oni_cadia_core:water_source" then
+				minetest.set_node({ x = x, y = y, z = z }, { name = "oni_cadia_core:dirt_with_grass" })
+				for depth = 1, 3 do
+					local below = { x = x, y = y - depth, z = z }
+					local below_name = minetest.get_node(below).name
+					if below_name == "oni_cadia_core:stone" then
+						minetest.set_node(below, { name = "oni_cadia_core:dirt" })
+					end
+				end
+				local open1 = generation_replaceable({ x = x, y = y + 1, z = z })
+				local open2 = generation_replaceable({ x = x, y = y + 2, z = z })
+				local h = forest_hash(x, z, blockseed)
+				if open1 and open2 and h < 135 then
+					place_forest_tree(x, y, z, 4 + (h % 3))
+				elseif open1 and h >= 135 and h < 650 then
+					minetest.set_node({ x = x, y = y + 1, z = z }, { name = "oni_cadia_core:forest_grass" })
+				end
+			end
+		end
+	end
+end)
+
 local function material_from_node_name(node_name)
 	local name = tostring(node_name or ""):lower()
 	if name == "" or name == "air" or name == "ignore" then
@@ -802,7 +985,7 @@ end
 local function mine_one_node(agent, pos, requested_material)
 	local target = copy_pos(pos)
 	local node, def = node_and_def(target)
-	if not node or node.name == "air" or node.name == "ignore" or def.walkable == false then
+	if not node or node.name == "air" or node.name == "ignore" or def.diggable == false then
 		return nil
 	end
 	local material = material_from_node_name(node.name)
@@ -830,9 +1013,27 @@ local function mine_near_agent(agent, requested_material, count)
 	local mined = {}
 	local total = 0
 	minetest.load_area(
-		{ x = base.x - 4, y = base.y - 4, z = base.z - 4 },
-		{ x = base.x + 4, y = base.y + 1, z = base.z + 4 }
+		{ x = base.x - 8, y = base.y - 4, z = base.z - 8 },
+		{ x = base.x + 8, y = base.y + 8, z = base.z + 8 }
 	)
+	for height = 1, 7 do
+		for radius = 1, 8 do
+			for dx = -radius, radius do
+				for dz = -radius, radius do
+					if math.abs(dx) == radius or math.abs(dz) == radius then
+						local material = mine_one_node(agent, { x = base.x + dx, y = base.y + height, z = base.z + dz }, requested_material)
+						if material then
+							mined[material] = (mined[material] or 0) + 1
+							total = total + 1
+							if total >= wanted then
+								return mined, total
+							end
+						end
+					end
+				end
+			end
+		end
+	end
 	for depth = 0, 3 do
 		for radius = 1, 4 do
 			for dx = -radius, radius do
@@ -983,7 +1184,13 @@ local function apply_action(action)
 		civic_chat(agent, "移動しました: " .. direction .. " x" .. tostring(steps))
 	elseif kind == "mine" then
 		local requested = tostring(action.material or "")
-		local mined, total = mine_near_agent(agent, requested, action.count)
+		local mined, total = mine_near_agent(agent, requested ~= "" and requested or "wood", action.count)
+		if requested == "" and total == 0 then
+			mined, total = mine_near_agent(agent, "stone", action.count)
+		end
+		if requested == "" and total == 0 then
+			mined, total = mine_near_agent(agent, "grass", action.count)
+		end
 		if total > 0 then
 			agent.last_action = "mine"
 			civic_chat(agent, "採掘しました: " .. format_inventory_delta(mined))
@@ -1066,6 +1273,7 @@ minetest.register_on_mods_loaded(function()
 		seed_existing_actions_as_processed()
 	end
 	ensure_ground()
+	ensure_starter_forest()
 	clear_legacy_static_objects_once()
 	for id, profile in pairs(profiles) do
 		ensure_agent(id, profile.name)

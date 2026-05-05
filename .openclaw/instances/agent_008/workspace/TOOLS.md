@@ -30,9 +30,10 @@
 - 発言: `python3 /home/node/.openclaw/minetest-tools/act.py say --message "広場に灯りを置きます"`
 - 移動: `python3 /home/node/.openclaw/minetest-tools/act.py move --direction east --steps 3`
 - 採掘: `python3 /home/node/.openclaw/minetest-tools/act.py mine --count 8`
-- 建築: `python3 /home/node/.openclaw/minetest-tools/act.py build --shape marker --material stone --label "くえん の最初の目印"`
+- 木を採る: `python3 /home/node/.openclaw/minetest-tools/act.py mine --material wood --count 6`
+- 建築: `python3 /home/node/.openclaw/minetest-tools/act.py build --shape marker --material wood --label "くえん の森の目印"`
 
-1 回の会話で無理に大量建築しないでください。自然地形から採掘し、集めた資源で小さな一手を置き、Minetest の国土チャットで自然に話します。
+1 回の会話で無理に大量建築しないでください。森から採掘し、集めた資源で小さな一手を置き、Minetest の国土チャットで自然に話します。
 
 ## この file の用途
 

@@ -663,6 +663,8 @@ class CliTests(unittest.TestCase):
             self.assertIn("creative_mode = false", minetest_conf)
             self.assertIn("enable_damage = true", minetest_conf)
             self.assertIn("default_privs = interact,shout", minetest_conf)
+            self.assertIn("mg_name = valleys", minetest_conf)
+            self.assertIn("water_level = -4", minetest_conf)
             state = json.loads(cli.minetest_state_file(cfg.root_dir).read_text(encoding="utf-8"))
             self.assertEqual(state["chat_log"], [])
             self.assertEqual(manifest["spec"]["containers"][0]["ports"][0]["protocol"], "UDP")
