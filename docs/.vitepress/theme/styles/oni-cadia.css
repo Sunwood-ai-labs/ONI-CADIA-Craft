@@ -1,0 +1,272 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Cinzel:wght@500;700&display=swap");
+
+:root {
+  --oni-cadia-bg: #1a0505;
+  --oni-cadia-ink: #2d0808;
+  --oni-cadia-ember: #4a0d0d;
+  --oni-cadia-crest: #991b1b;
+  --oni-cadia-gold: #d4af37;
+  --oni-cadia-glow: rgba(185, 28, 28, 0.55);
+  --oni-cadia-glow-soft: rgba(185, 28, 28, 0.32);
+
+  --vp-c-bg: var(--oni-cadia-bg);
+  --vp-c-bg-alt: #120606;
+  --vp-c-bg-soft: #220909;
+  --vp-c-bg-elv: #1b0707;
+  --vp-c-border: var(--oni-cadia-ember);
+  --vp-c-divider: rgba(185, 28, 28, 0.3);
+  --vp-c-gutter: #2d0808;
+
+  --vp-c-text-1: #fbe8d6;
+  --vp-c-text-2: #dfcab1;
+  --vp-c-text-3: #c8a98c;
+  --vp-c-neutral: var(--oni-cadia-bg);
+  --vp-c-neutral-inverse: #fff9f0;
+
+  --vp-c-brand-1: var(--oni-cadia-crest);
+  --vp-c-brand-2: #b91c1c;
+  --vp-c-brand-3: var(--oni-cadia-gold);
+  --vp-c-brand-soft: rgba(185, 28, 28, 0.2);
+
+  --vp-c-danger-1: var(--oni-cadia-crest);
+  --vp-c-danger-soft: rgba(185, 28, 28, 0.28);
+  --vp-c-warning-1: var(--oni-cadia-gold);
+
+  --vp-c-default-1: #2f1010;
+  --vp-c-default-2: #3a1616;
+  --vp-c-default-3: #462020;
+  --vp-c-default-soft: rgba(185, 28, 28, 0.14);
+
+  --vp-c-code-1: #f7d8b4;
+  --vp-c-mute: rgba(219, 190, 157, 0.78);
+
+  --vp-c-code-bg: #130808;
+  --vp-code-bg: #130808;
+  --vp-code-block-bg: #130808;
+  --vp-code-line-highlight-color: rgba(185, 28, 28, 0.2);
+
+  --vp-font-family-base: "Manrope", "Yu Gothic", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --vp-font-family-mono: "Source Code Pro", "Consolas", "Menlo", "Monaco", "Courier New", monospace;
+
+  --vp-nav-bg-color: #120606;
+  --vp-nav-screen-bg-color: #120606;
+  --vp-nav-height: 64px;
+  --vp-sidebar-bg-color: #160707;
+  --vp-local-nav-bg-color: #1a0707;
+  --vp-home-hero-name-color: var(--oni-cadia-gold);
+  --vp-home-hero-image-background-image: radial-gradient(
+    720px circle at 70% 18%,
+    var(--oni-cadia-glow),
+    transparent 45%
+  );
+  --vp-home-hero-image-filter: blur(0);
+
+  --vp-button-brand-bg: var(--vp-c-brand-3);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-bg: var(--oni-cadia-ember);
+  --vp-button-alt-bg: rgba(185, 28, 28, 0.14);
+  --vp-button-alt-hover-bg: rgba(185, 28, 28, 0.24);
+}
+
+html.dark {
+  --vp-c-bg: var(--oni-cadia-bg);
+  --vp-c-bg-alt: #120606;
+  --vp-c-bg-soft: #220909;
+  --vp-c-bg-elv: #1b0707;
+}
+
+html {
+  color: var(--vp-c-text-1);
+  background:
+    radial-gradient(circle at 10% -10%, rgba(185, 28, 28, 0.18), transparent 44%),
+    radial-gradient(circle at 90% 5%, rgba(185, 28, 28, 0.18), transparent 40%),
+    var(--vp-c-bg);
+}
+
+body {
+  background: transparent;
+}
+
+.VPNavBar,
+.VPNavBar .content-body,
+.VPNav,
+.VPSidebar,
+.VPFooter,
+.VPDoc,
+.VPDocFooter,
+.VPSidebar.open {
+  background-color: var(--vp-c-bg-soft);
+}
+
+.VPNavBar .content-body {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+}
+
+.VPSidebar {
+  border-right: 1px solid rgba(185, 28, 28, 0.35);
+}
+
+.vp-doc,
+.vp-doc p {
+  line-height: 1.8;
+}
+
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4 {
+  font-family: "Cinzel", "Yu Mincho", "Hiragino Mincho ProN", serif;
+  color: #ffe8c8;
+  letter-spacing: 0.01em;
+}
+
+.VPHero .name,
+.VPHero .text,
+.VPNavBarTitle .title {
+  font-family: "Cinzel", "Yu Mincho", "Hiragino Mincho ProN", serif;
+}
+
+:lang(ja) .vp-doc,
+:lang(ja) .VPHero,
+:lang(ja) .VPNavBar,
+:lang(ja) .VPSidebar {
+  font-family: "Manrope", "Yu Gothic", "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+
+:lang(ja) .vp-doc h1,
+:lang(ja) .vp-doc h2,
+:lang(ja) .vp-doc h3,
+:lang(ja) .vp-doc h4,
+:lang(ja) .VPHero .name,
+:lang(ja) .VPHero .text {
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+}
+
+.vp-doc h2 {
+  border-bottom: 1px solid rgba(185, 28, 28, 0.35);
+}
+
+.vp-doc a {
+  color: var(--vp-c-gold, var(--oni-cadia-gold));
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid rgba(212, 175, 55, 0.9);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.24);
+}
+
+.vp-doc strong {
+  color: #ffeacb;
+}
+
+.vp-doc hr {
+  border: 0;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.vp-doc .vp-block,
+.vp-doc blockquote {
+  border-left: 3px solid var(--oni-cadia-gold);
+  background: linear-gradient(120deg, rgba(185, 28, 28, 0.2), rgba(185, 28, 28, 0));
+}
+
+code,
+pre,
+.vp-code,
+.copy .copy {
+  font-family: var(--vp-font-family-mono);
+}
+
+pre {
+  border: 1px solid rgba(185, 28, 28, 0.5);
+  box-shadow: 0 0 18px rgba(185, 28, 28, 0.22), inset 0 0 0 1px rgba(212, 175, 55, 0.15);
+}
+
+.vp-code-group,
+.vp-code-block,
+.vp-adaptive-theme .vp-adaptive-theme-switch {
+  border-color: rgba(185, 28, 28, 0.35) !important;
+}
+
+.VPButton.medium,
+.VPButton.small {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.VPButton.medium:hover,
+.VPButton.small:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 34px rgba(185, 28, 28, 0.18);
+}
+
+.VPButton.brand {
+  color: #1c0707 !important;
+  font-weight: 700;
+}
+
+.VPFooter .copyright,
+.VPFooter .message {
+  color: var(--vp-c-text-3);
+}
+
+.outline-marker {
+  background: linear-gradient(to right, var(--oni-cadia-crest), var(--oni-cadia-gold));
+}
+
+.DocSearch {
+  --docsearch-container-background: rgba(14, 4, 4, 0.6);
+  --docsearch-modal-background: var(--vp-c-bg-soft);
+  --docsearch-modal-shadow: 0 22px 70px var(--oni-cadia-glow-soft);
+  --docsearch-searchbox-focus-background: var(--vp-c-bg-soft);
+  --docsearch-text-color: var(--vp-c-text-1);
+  --docsearch-hit-background: var(--vp-c-bg);
+  --docsearch-hit-active-color: var(--oni-cadia-gold);
+  --docsearch-key-gradient: linear-gradient(180deg, var(--vp-c-bg-soft), #230b0b);
+}
+
+.VPImage.logo {
+  filter: drop-shadow(0 0 16px rgba(185, 28, 28, 0.36));
+}
+
+.VPBadge {
+  background: linear-gradient(95deg, rgba(185, 28, 28, 0.18), rgba(212, 175, 55, 0.2));
+  border: 1px solid var(--oni-cadia-gold);
+  color: #ffe8b8;
+}
+
+.VPHero .main,
+.VPHome .main {
+  position: relative;
+}
+
+.VPHero .main::before,
+.VPHome .main::before {
+  content: "";
+  position: absolute;
+  inset: -6px -8px 8px;
+  border-radius: 20px;
+  background: radial-gradient(130px 60px at 82% 14%, rgba(185, 28, 28, 0.35), transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.VPHomeHero,
+.VPHome .vp-doc {
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .VPHero .name {
+    letter-spacing: 0.01em;
+  }
+
+  .VPDocFooter {
+    padding-inline: 0.75rem;
+  }
+}

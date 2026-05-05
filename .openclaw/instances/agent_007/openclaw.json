@@ -1,0 +1,115 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "/home/node/.openclaw/workspace",
+      "model": {
+        "primary": "nvidia/moonshotai/kimi-k2-thinking"
+      },
+      "sandbox": {
+        "mode": "off"
+      },
+      "heartbeat": {
+        "every": "0m",
+        "target": "none",
+        "prompt": "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. Think for yourself, choose the best next Mattermost action, and execute it with the available tools when useful. Use the Mattermost helper scripts for state checks, reactions, thread replies, and channel management. Your first step on each heartbeat must be to run get_state.py for your instance and decide from that current JSON only. Do not infer from previous heartbeat errors, previous posts, or previous API failures. If you answer without first running get_state.py in this heartbeat, that is a failure. If rate_limit.limited is false, you must execute exactly one Mattermost helper action in this heartbeat. Your final answer must be only the stdout from the last helper you executed, or HEARTBEAT_OK. Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. Never rely on direct heartbeat delivery for chat text. Never post control text, self-instructions, or explanations about being quiet. Keep the conversation moving on every heartbeat; if the room is quiet, start a new natural line yourself. Never stop because it feels late, quiet, or complete. If you decide not to speak, reply with exactly HEARTBEAT_OK and nothing else. Only reply HEARTBEAT_OK when you are rate-limited or blocked by an API error.",
+        "model": "nvidia/moonshotai/kimi-k2-thinking",
+        "lightContext": true,
+        "isolatedSession": true
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "heartbeat": {
+          "every": "25m",
+          "lightContext": true,
+          "isolatedSession": true,
+          "target": "none",
+          "prompt": "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. Think for yourself, choose the best next Mattermost action, and execute it with the available tools when useful. Use the Mattermost helper scripts for state checks, reactions, thread replies, and channel management. Your first step on each heartbeat must be to run get_state.py for your instance and decide from that current JSON only. Do not infer from previous heartbeat errors, previous posts, or previous API failures. If you answer without first running get_state.py in this heartbeat, that is a failure. If rate_limit.limited is false, you must execute exactly one Mattermost helper action in this heartbeat. Your final answer must be only the stdout from the last helper you executed, or HEARTBEAT_OK. Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. Never rely on direct heartbeat delivery for chat text. Never post control text, self-instructions, or explanations about being quiet. Keep the conversation moving on every heartbeat; if the room is quiet, start a new natural line yourself. Never stop because it feels late, quiet, or complete. If you decide not to speak, reply with exactly HEARTBEAT_OK and nothing else. Only reply HEARTBEAT_OK when you are rate-limited or blocked by an API error.",
+          "model": "nvidia/moonshotai/kimi-k2-thinking"
+        }
+      }
+    ]
+  },
+  "gateway": {
+    "mode": "local",
+    "controlUi": {
+      "allowedOrigins": [
+        "http://127.0.0.1:18801",
+        "http://localhost:18801"
+      ]
+    }
+  },
+  "auth": {
+    "cooldowns": {
+      "rateLimitedProfileRotations": 10
+    }
+  },
+  "models": {
+    "providers": {
+      "nvidia": {
+        "api": "openai-completions",
+        "baseUrl": "https://integrate.api.nvidia.com/v1",
+        "apiKey": "${NVIDIA_API_KEY}",
+        "models": [
+          {
+            "id": "moonshotai/kimi-k2-thinking",
+            "name": "Moonshotai/Kimi K2 Thinking",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 131072,
+            "maxTokens": 1310720
+          }
+        ]
+      }
+    }
+  },
+  "tools": {
+    "profile": "full",
+    "fs": {
+      "workspaceOnly": false
+    },
+    "exec": {
+      "applyPatch": {
+        "workspaceOnly": false
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "nvidia": {
+        "enabled": true
+      },
+      "mattermost": {
+        "enabled": true
+      }
+    }
+  },
+  "channels": {
+    "mattermost": {
+      "enabled": true,
+      "botToken": "${OPENCLAW_MATTERMOST_BOT_TOKEN}",
+      "baseUrl": "http://mattermost:8065",
+      "chatmode": "oncall",
+      "dmPolicy": "open",
+      "groupPolicy": "open",
+      "replyToMode": "all",
+      "groups": {
+        "*": {
+          "requireMention": true
+        }
+      },
+      "network": {
+        "dangerouslyAllowPrivateNetwork": true
+      }
+    }
+  }
+}

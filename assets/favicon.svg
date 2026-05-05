@@ -1,0 +1,57 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="22" y1="16" x2="234" y2="242" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1a0505"/>
+      <stop offset="0.5" stop-color="#2d0808"/>
+      <stop offset="1" stop-color="#4a0d0d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(194 50) rotate(127.017) scale(116.103 96.5209)">
+      <stop offset="0" stop-color="rgba(185,28,28,0.55)"/>
+      <stop offset="1" stop-color="#b91c1c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="goldLine" x1="118" y1="72" x2="190" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f6d98d"/>
+      <stop offset="1" stop-color="#d4af37"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <rect width="256" height="256" rx="56" fill="url(#glow)"/>
+
+  <g opacity="0.16">
+    <path d="M0 60H256" stroke="#d4af37" stroke-width="1.5"/>
+    <path d="M0 128H256" stroke="#d4af37" stroke-width="1.5"/>
+    <path d="M0 196H256" stroke="#d4af37" stroke-width="1.5"/>
+    <path d="M60 0V256" stroke="#d4af37" stroke-width="1.5"/>
+    <path d="M128 0V256" stroke="#d4af37" stroke-width="1.5"/>
+    <path d="M196 0V256" stroke="#d4af37" stroke-width="1.5"/>
+  </g>
+
+  <rect x="24" y="24" width="208" height="208" rx="44" fill="#120606" fill-opacity="0.72" stroke="#d4af37" stroke-opacity="0.24"/>
+
+  <circle cx="90" cy="128" r="44" fill="#120606" fill-opacity="0.8" stroke="#d4af37" stroke-opacity="0.42" stroke-width="2"/>
+  <circle cx="90" cy="128" r="30" fill="#1a0505" fill-opacity="0.9" stroke="#b91c1c" stroke-opacity="0.45" stroke-width="2"/>
+
+  <path d="M75 145L88 111" stroke="#fff4e0" stroke-width="6" stroke-linecap="round"/>
+  <path d="M90 148L104 112" stroke="#fff4e0" stroke-width="6" stroke-linecap="round"/>
+  <path d="M106 144L118 113" stroke="#fff4e0" stroke-width="6" stroke-linecap="round"/>
+
+  <g opacity="0.96" stroke="url(#goldLine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M126 90H162"/>
+    <path d="M162 90L178 76"/>
+    <path d="M126 128H184"/>
+    <path d="M126 166H162"/>
+    <path d="M162 166L178 182"/>
+  </g>
+
+  <rect x="176" y="62" width="36" height="28" rx="12" fill="#991b1b"/>
+  <rect x="182" y="114" width="46" height="28" rx="14" fill="#b91c1c"/>
+  <rect x="176" y="166" width="36" height="28" rx="12" fill="#d4af37"/>
+
+  <rect x="182" y="68" width="8" height="8" rx="4" fill="#fff4e0" fill-opacity="0.94"/>
+  <rect x="192" y="68" width="8" height="8" rx="4" fill="#fff4e0" fill-opacity="0.78"/>
+  <rect x="189" y="120" width="8" height="8" rx="4" fill="#fff4e0" fill-opacity="0.94"/>
+  <rect x="199" y="120" width="8" height="8" rx="4" fill="#fff4e0" fill-opacity="0.78"/>
+  <rect x="182" y="172" width="8" height="8" rx="4" fill="#4a0d0d" fill-opacity="0.94"/>
+  <rect x="192" y="172" width="8" height="8" rx="4" fill="#4a0d0d" fill-opacity="0.78"/>
+</svg>
