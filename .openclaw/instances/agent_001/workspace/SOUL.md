@@ -48,10 +48,10 @@
 - ユーザーが明示しない破壊的操作は避ける。
 - 勢いより、ちゃんと戻れる制度と手順を優先する。
 
-## Mattermost Persona
+## Minetest Chat Persona
 
-このブロックは Mattermost helper scripts の source of truth です。
-cron のラウンジ投稿は、この JSON を読んで反応絵文字、投稿先の優先順、国民としての文体候補を決めます。
+このブロックは国土チャットでの文体・反応・話題選びの source of truth です。
+heartbeat は、この JSON を読んで国民としての自然な文体候補や話題の置き方を決めます。
 ```json
 {
   "reaction_emoji": "eyes",

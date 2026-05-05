@@ -6,9 +6,6 @@
     "labels": {
       "io.openclaw-podman.managed": "true",
       "io.openclaw-podman.instance": "mattermost"
-    },
-    "annotations": {
-      "io.podman.annotations.userns": "keep-id"
     }
   },
   "spec": {

@@ -28,10 +28,16 @@ MATTERMOST_GET_STATE_SCRIPT_FILE = MATTERMOST_TOOLS_SOURCE_DIR / "get_state.py"
 MATTERMOST_POST_MESSAGE_SCRIPT_FILE = MATTERMOST_TOOLS_SOURCE_DIR / "post_message.py"
 MATTERMOST_CREATE_CHANNEL_SCRIPT_FILE = MATTERMOST_TOOLS_SOURCE_DIR / "create_channel.py"
 MATTERMOST_ADD_REACTION_SCRIPT_FILE = MATTERMOST_TOOLS_SOURCE_DIR / "add_reaction.py"
+MINETEST_TOOLS_SOURCE_DIR = REPO_ROOT / "scripts" / "minetest_tools"
+MINETEST_CONTAINER_CONTEXT_DIR = REPO_ROOT / "containers" / "minetest"
 CONTAINER_CONFIG_DIR = "/home/node/.openclaw"
 CONTAINER_WORKSPACE_DIR = "/home/node/.openclaw/workspace"
 CONTAINER_MATTERMOST_TOOLS_DIR = f"{CONTAINER_CONFIG_DIR}/mattermost-tools"
+CONTAINER_MINETEST_TOOLS_DIR = f"{CONTAINER_CONFIG_DIR}/minetest-tools"
+CONTAINER_MINETEST_BRIDGE_DIR = f"{CONTAINER_CONFIG_DIR}/minetest-bridge"
 CONTAINER_SHARED_BOARD_DIR = CONTAINER_MATTERMOST_TOOLS_DIR
+CONTAINER_MINETEST_ROOT_DIR = "/var/lib/minetest/.minetest"
+CONTAINER_MINETEST_BRIDGE_SERVER_DIR = f"{CONTAINER_MINETEST_ROOT_DIR}/worlds/oni-cadia/oni-cadia-bridge"
 STATE_ENV_NAME = ".env"
 DEFAULT_OLLAMA_MODEL_ID = "gemma4:e2b"
 DEFAULT_MODEL_REF = f"ollama/{DEFAULT_OLLAMA_MODEL_ID}"
@@ -62,6 +68,20 @@ DEFAULT_MATTERMOST_TEAM_NAME = "openclaw"
 DEFAULT_MATTERMOST_CHANNEL_NAME = "triad-lab"
 DEFAULT_MATTERMOST_AUTONOMY_MODEL = "zai/glm-5-turbo"
 DEFAULT_DISCUSSION_INSTANCE_COUNT = 3
+CHAT_BACKEND_MINETEST = "minetest"
+CHAT_BACKEND_MATTERMOST = "mattermost"
+DEFAULT_MINETEST_DIR = "./.openclaw/minetest"
+DEFAULT_MINETEST_IMAGE = "localhost/oni-cadia-minetest:latest"
+DEFAULT_MINETEST_CONTAINER_NAME = "oni-cadia-minetest"
+DEFAULT_MINETEST_HOST_PORT = 30000
+DEFAULT_MINETEST_CONTAINER_PORT = 30000
+DEFAULT_MINETEST_API_HOST_PORT = 30800
+DEFAULT_MINETEST_API_CONTAINER_PORT = 30800
+DEFAULT_MINETEST_API_PUBLISH_HOST = "127.0.0.1"
+DEFAULT_MINETEST_PUBLISH_HOST = "127.0.0.1"
+DEFAULT_MINETEST_WORLD_NAME = "oni-cadia"
+DEFAULT_MINETEST_GAMEID = "oni_cadia_game"
+DEFAULT_MINETEST_PLAYER_CLIENT_COUNT = 9
 MATTERMOST_MMCTL_BIN = "/mm/mattermost/bin/mmctl"
 MANAGED_LABEL_KEY = "io.openclaw-podman.managed"
 INSTANCE_LABEL_KEY = "io.openclaw-podman.instance"
@@ -94,14 +114,33 @@ RATE_LIMIT_RETRY_TOKENS = (
     "service may be temporarily overloaded",
     '"code":429',
 )
-DEFAULT_HEARTBEAT_PROMPT = (
+MINETEST_HEARTBEAT_PROMPT = (
+    "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. "
+    "Think for yourself, choose the best next Minetest/Luanti action, and execute it with the available tools when useful. "
+        "Use the Minetest API helper scripts for state checks, in-world chat, movement, and civic building. "
+        "Your first step on each heartbeat must be to run get_state.py from the Minetest tools, through your own agent API token, and decide from that current JSON only. "
+    "Do not infer from previous heartbeat errors, previous chat lines, or previous API failures. "
+    "If you answer without first running Minetest get_state.py in this heartbeat, that is a failure. "
+    "If the current Minetest chat log contains a direct question, mention, request, or civic-building topic, answer inside Minetest with exactly one helper action. "
+    "If the room is quiet, place exactly one natural in-world chat line or one small movement/building action. "
+    "Your final answer must be only the stdout from the Minetest helper you executed, or HEARTBEAT_OK if blocked by an API/tool error. "
+    "Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. "
+        "Never use Mattermost for this heartbeat, and never write directly to the Minetest bridge queue. "
+    "Never post control text, self-instructions, or explanations about being quiet. "
+        "Keep the civilization moving through the Minetest API and in-world chat; if the room is quiet, start a new natural line yourself. "
+    "Never stop because it feels late, quiet, or complete. "
+    "Only reply HEARTBEAT_OK when you are blocked by an API or tool error."
+)
+
+MATTERMOST_HEARTBEAT_PROMPT = (
     "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. "
     "Think for yourself, choose the best next Mattermost action, and execute it with the available tools when useful. "
     "Use the Mattermost helper scripts for state checks, reactions, thread replies, and channel management. "
     "Your first step on each heartbeat must be to run get_state.py for your instance and decide from that current JSON only. "
     "Do not infer from previous heartbeat errors, previous posts, or previous API failures. "
     "If you answer without first running get_state.py in this heartbeat, that is a failure. "
-    "If rate_limit.limited is false, you must execute exactly one Mattermost helper action in this heartbeat. "
+    "If the current Mattermost state asks for Minetest/Luanti civilization, movement, or building, you may execute at most one Minetest helper action before the Mattermost reply. "
+    "If rate_limit.limited is false, you must execute exactly one Mattermost helper action in this heartbeat after any optional Minetest action. "
     "Your final answer must be only the stdout from the last helper you executed, or HEARTBEAT_OK. "
     "Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. "
     "Never rely on direct heartbeat delivery for chat text. "
@@ -111,6 +150,7 @@ DEFAULT_HEARTBEAT_PROMPT = (
     "If you decide not to speak, reply with exactly HEARTBEAT_OK and nothing else. "
     "Only reply HEARTBEAT_OK when you are rate-limited or blocked by an API error."
 )
+DEFAULT_HEARTBEAT_PROMPT = MINETEST_HEARTBEAT_PROMPT
 
 DEFAULTS = {
     "OPENCLAW_CONTAINER": "openclaw",
@@ -133,6 +173,7 @@ DEFAULTS = {
     "OPENCLAW_OPENROUTER_BASE_URL": DEFAULT_OPENROUTER_BASE_URL,
     "OPENCLAW_ZAI_BASE_URL": DEFAULT_ZAI_BASE_URL,
     "OPENCLAW_NVIDIA_BASE_URL": DEFAULT_NVIDIA_BASE_URL,
+    "OPENCLAW_CHAT_BACKEND": CHAT_BACKEND_MINETEST,
     "OPENCLAW_SCALE_INSTANCE_ROOT": DEFAULT_SCALE_INSTANCE_ROOT,
     "OPENCLAW_SCALE_GATEWAY_PORT_START": str(DEFAULT_SCALE_GATEWAY_PORT_START),
     "OPENCLAW_SCALE_BRIDGE_PORT_START": str(DEFAULT_SCALE_BRIDGE_PORT_START),
@@ -145,6 +186,7 @@ DEFAULTS = {
     "OPENCLAW_MATTERMOST_IMAGE": DEFAULT_MATTERMOST_IMAGE,
     "OPENCLAW_MATTERMOST_HOST_PORT": str(DEFAULT_MATTERMOST_HOST_PORT),
     "OPENCLAW_MATTERMOST_PUBLISH_HOST": DEFAULT_MATTERMOST_PUBLISH_HOST,
+    "OPENCLAW_MATTERMOST_USERNS": "",
     "OPENCLAW_MATTERMOST_ENABLED": "false",
     "OPENCLAW_MATTERMOST_BASE_URL": DEFAULT_MATTERMOST_BASE_URL,
     "OPENCLAW_MATTERMOST_SITE_URL": DEFAULT_MATTERMOST_SITE_URL,
@@ -172,6 +214,22 @@ DEFAULTS = {
     "OPENCLAW_MATTERMOST_OPERATOR_USERNAME": "operator",
     "OPENCLAW_MATTERMOST_OPERATOR_EMAIL": "operator@openclaw.local",
     "OPENCLAW_MATTERMOST_TEAMMATE_NAME_DISPLAY": "full_name",
+    "OPENCLAW_MINETEST_ENABLED": "false",
+    "OPENCLAW_MINETEST_DIR": DEFAULT_MINETEST_DIR,
+    "OPENCLAW_MINETEST_CONTAINER": DEFAULT_MINETEST_CONTAINER_NAME,
+    "OPENCLAW_MINETEST_IMAGE": DEFAULT_MINETEST_IMAGE,
+    "OPENCLAW_MINETEST_HOST_PORT": str(DEFAULT_MINETEST_HOST_PORT),
+    "OPENCLAW_MINETEST_API_HOST_PORT": str(DEFAULT_MINETEST_API_HOST_PORT),
+    "OPENCLAW_MINETEST_API_PUBLISH_HOST": DEFAULT_MINETEST_API_PUBLISH_HOST,
+    "OPENCLAW_MINETEST_API_BASE_URL": f"http://{DEFAULT_MINETEST_CONTAINER_NAME}-api:{DEFAULT_MINETEST_API_CONTAINER_PORT}",
+    "OPENCLAW_MINETEST_PUBLISH_HOST": DEFAULT_MINETEST_PUBLISH_HOST,
+    "OPENCLAW_MINETEST_WORLD_NAME": DEFAULT_MINETEST_WORLD_NAME,
+    "OPENCLAW_MINETEST_GAMEID": DEFAULT_MINETEST_GAMEID,
+    "OPENCLAW_MINETEST_PLAYER_CLIENT_COUNT": str(DEFAULT_MINETEST_PLAYER_CLIENT_COUNT),
+    "OPENCLAW_MINETEST_AUTONOMY_ENABLED": "false",
+    "OPENCLAW_MINETEST_AUTONOMY_INTERVAL": "6m",
+    "OPENCLAW_MINETEST_AUTONOMY_LIGHT_CONTEXT": "true",
+    "OPENCLAW_MINETEST_AUTONOMY_ISOLATED_SESSION": "true",
 }
 
 MATTERMOST_AUTONOMY_INTERVAL_DEFAULTS = {
@@ -193,6 +251,7 @@ RUNTIME_ENV_EXACT = {
 SECRET_ENV_EXACT = {
     "OPENCLAW_GATEWAY_TOKEN",
     "OPENCLAW_MATTERMOST_BOT_TOKEN",
+    "OPENCLAW_MINETEST_AGENT_TOKEN",
     MATTERMOST_ADMIN_PASSWORD_KEY,
     MATTERMOST_OPERATOR_PASSWORD_KEY,
 }
@@ -242,6 +301,25 @@ class MattermostConfig:
     publish_host: str
     network: str
     base_url: str
+    raw_env: dict[str, str]
+
+
+@dataclass
+class MinetestConfig:
+    env_file: Path
+    root_dir: Path
+    pod_name: str
+    container_name: str
+    image: str
+    host_port: int
+    api_host_port: int
+    api_publish_host: str
+    api_base_url: str
+    publish_host: str
+    network: str
+    world_name: str
+    gameid: str
+    player_client_count: int
     raw_env: dict[str, str]
 
 
@@ -669,10 +747,10 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
             "- ユーザーが明示しない破壊的操作は避ける。",
             f"- {profile.caution}。",
             "",
-            "## Mattermost Persona",
+            "## Minetest Chat Persona",
             "",
-            "このブロックは Mattermost helper scripts の source of truth です。",
-            "cron のラウンジ投稿は、この JSON を読んで反応絵文字、投稿先の優先順、国民としての文体候補を決めます。",
+            "このブロックは国土チャットでの文体・反応・話題選びの source of truth です。",
+            "heartbeat は、この JSON を読んで国民としての自然な文体候補や話題の置き方を決めます。",
             "```json",
             json.dumps(mattermost_persona, ensure_ascii=False, indent=2),
             "```",
@@ -725,7 +803,7 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
         {WORKSPACE_MANAGED_MARKER}
         # HEARTBEAT.md - {profile.display_name}
 
-        heartbeat では Mattermost の公共圏を見て、自分で判断して動いてよいです。
+        heartbeat では Minetest / Luanti の国土チャットを見て、自分で判断して動いてよいです。
         順番待ちやターン制は不要です。静かなら待たずに、自分から市民らしい自然な雑談や問いかけを始めてください。
 
         優先観点:
@@ -736,26 +814,27 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
 
         実行手順:
         1. 必要なら `SOUL.md` を見直して、市民人格と公共性を合わせる。
-        2. まず `exec` で `python3 {CONTAINER_MATTERMOST_TOOLS_DIR}/get_state.py --instance {profile.instance_id}` を実行し、今の Mattermost 状態を確認する。
-        3. `rate_limit.limited` が `true` なら `HEARTBEAT_OK` で止まる。
-        4. `rate_limit.limited` が `false` なら、必ず Mattermost helper を使って 1 件 action を実行する。
-        5. 新しい雑談を始める時は `post_message.py --channel-name {public_square_channel} --message "<自然な一文>"` を使う。
-        6. thread 返信・reaction・channel 作成が必要な時は `post_message.py`、`create_channel.py`、`add_reaction.py` を使ってよい。
-        7. 最後の返答は、最後に実行した helper の stdout だけにする。
+        2. まず `exec` で `python3 {CONTAINER_MINETEST_TOOLS_DIR}/get_state.py` を実行し、自分の agent API token 経由で今の Minetest 国土状態と `chat_log` を確認する。
+        3. プレイヤーや他の市民から質問・呼びかけ・建築相談があれば、Minetest API helper を使って 1 件だけ返す。
+        4. 静かなら、`say` で自然な一文を置くか、`move` / `build` で小さな一手を置く。
+        5. 発言は `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py say --message "<自然な一文>"` を使う。`--instance` と token は自分の Pod の env から読む。
+        6. 移動や建築が必要な時は `move` / `build` を使う。1 heartbeat につき action は 1 件まで。
+        7. 最後の返答は、最後に実行した Minetest helper の stdout だけにする。
 
         ルール:
-        - 1 回の heartbeat で多投しない。必要なら 1 投稿まで。
+        - 1 回の heartbeat で多投しない。Minetest action は 1 件まで。
         - 人に指示を待たず、自分で会話を前へ動かす。
-        - 投稿文は「本物の人間の国民」が広場で話す調子にする。ロボット口調やシステムメッセージ風の文は避ける。
-        - 毎 heartbeat の判断材料は、今この回で取得した `get_state.py` の JSON だけにする。前回の 401 や前回の投稿内容を根拠にしない。
+        - 発言文は「本物の人間の国民」が国土で話す調子にする。ロボット口調やシステムメッセージ風の文は避ける。
+        - 毎 heartbeat の判断材料は、今この回で取得した Minetest `get_state.py` の JSON だけにする。
         - 時刻判断は必ず日本時間 (`Asia/Tokyo`, JST) を基準にする。heartbeat prompt に UTC が書かれていても、それだけで「深夜」と決めない。
         - `今日は静かだから何もしない` は禁止。静かなら新しい一言を置く。
         - `深夜だから控える`, `静まり返っているから休む`, `これ以上は何もしない` のような判断は禁止。
         - ただし、無理に仕事の報告を始めるより、雑談として自然な一歩を選ぶ。
         - 同じ話題や同じ言い回しの連投は避ける。
-        - helper を使わずに自分の返答テキストをそのまま Mattermost に流そうとしてはいけない。
-        - 投稿しない時は `HEARTBEAT_OK` だけを返す。`深夜だから静かにする`, `HEARTBEAT_OK を返す` のような説明文を Mattermost に投稿してはいけない。
-        - 旧 lounge runner のような「1ターン制」に合わせる必要はない。
+        - helper を使わずに自分の返答テキストをそのまま返してはいけない。
+        - `--direct-bridge` は使わない。各 Pod は Mattermost bot と同じように API と token で動く。
+        - action が失敗した時だけ `HEARTBEAT_OK` を返す。説明文は返さない。
+        - Mattermost は使わない。会話は Minetest 側に寄せる。
         """
     )
 
@@ -825,7 +904,8 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
         - Bridge: `{bridge_url}`
         - Workspace: `{workspace_path}`
         - Config dir: `{config_path}`
-        - Mattermost lounge scripts: `{CONTAINER_MATTERMOST_TOOLS_DIR}`
+        - Minetest/Luanti action scripts: `{CONTAINER_MINETEST_TOOLS_DIR}`
+        - Minetest/Luanti API: `$OPENCLAW_MINETEST_API_BASE_URL`
 
         ## 実務メモ
 
@@ -833,6 +913,18 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
         - Instance init: `./scripts/init.ps1 --instance {profile.instance_id}`
         - Dry-run launch: `./scripts/launch.ps1 --instance {profile.instance_id} --dry-run`
         - Logs: `./scripts/logs.ps1 --instance {profile.instance_id} -Follow`
+
+        ## Minetest / Luanti 国土チャット
+
+        会話は Mattermost ではなく Minetest/Luanti 内で行います。自分の agent API account と token で、国土チャット・移動・建築を 1 アクションずつ置けます。
+        それぞれの agent は独立した API account を持ち、同じ ONI-CADIA Minetest API を通じて国土へ反映されます。
+
+        - 状態とチャット確認: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/get_state.py`
+        - 発言: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py say --message "広場に灯りを置きます"`
+        - 移動: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py move --direction east --steps 3`
+        - 建築: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py build --shape house --material wood --label "{profile.display_name} の工房"`
+
+        1 回の会話で無理に大量建築しないでください。小さな一手を置き、Minetest の国土チャットで自然に話します。
 
         ## この file の用途
 
@@ -931,6 +1023,42 @@ def scaffold_mattermost_tools(instance: ScaledInstance) -> None:
     tools_root = mattermost_tools_root(instance)
     tools_root.mkdir(parents=True, exist_ok=True)
     rendered_files = render_mattermost_tool_files(instance)
+    managed_python_names = {path.name for path in rendered_files if path.suffix == ".py"}
+    for existing in tools_root.glob("*.py"):
+        if existing.name not in managed_python_names:
+            existing.unlink()
+    for path, content in rendered_files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def minetest_tools_root(instance: ScaledInstance) -> Path:
+    return instance.config.config_dir / "minetest-tools"
+
+
+def render_minetest_tool_files(instance: ScaledInstance) -> dict[Path, str]:
+    tools_root = minetest_tools_root(instance)
+    rendered: dict[Path, str] = {}
+    for source in sorted(MINETEST_TOOLS_SOURCE_DIR.glob("*.py")):
+        content = source.read_text(encoding="utf-8")
+        rendered[tools_root / source.name] = content if content.endswith("\n") else content + "\n"
+    readme = dedent(
+        f"""\
+        <!-- Managed by openclaw-podman-starter: minetest civilization scripts -->
+        # Minetest / Luanti Helper Scripts
+
+        These files are copied into `{CONTAINER_MINETEST_TOOLS_DIR}` inside each scaled OpenClaw pod.
+        They call the ONI-CADIA Minetest API with the pod's own agent account token.
+        """
+    )
+    rendered[tools_root / "README.md"] = readme.strip() + "\n"
+    return rendered
+
+
+def scaffold_minetest_tools(instance: ScaledInstance) -> None:
+    tools_root = minetest_tools_root(instance)
+    tools_root.mkdir(parents=True, exist_ok=True)
+    rendered_files = render_minetest_tool_files(instance)
     managed_python_names = {path.name for path in rendered_files if path.suffix == ".py"}
     for existing in tools_root.glob("*.py"):
         if existing.name not in managed_python_names:
@@ -1779,6 +1907,8 @@ def main_agent_heartbeat(instance: ScaledInstance) -> dict[str, object] | None:
 
 
 def set_mattermost_autonomy_env(env_file: Path, enabled: bool, interval_minutes: int | None = None) -> None:
+    if enabled:
+        write_or_update_env_value(env_file, "OPENCLAW_CHAT_BACKEND", CHAT_BACKEND_MATTERMOST)
     write_or_update_env_value(env_file, "OPENCLAW_MATTERMOST_AUTONOMY_ENABLED", "true" if enabled else "false")
     resolved_interval_minutes = max(1, interval_minutes) if interval_minutes is not None else None
     if interval_minutes is not None:
@@ -1796,7 +1926,47 @@ def set_mattermost_autonomy_env(env_file: Path, enabled: bool, interval_minutes:
     write_or_update_env_value(env_file, "OPENCLAW_MATTERMOST_AUTONOMY_MODEL", autonomy_model)
 
 
-def reconcile_mattermost_autonomy_instances(
+def seed_minetest_autonomy_interval_overrides(env_file: Path, base_interval_minutes: int) -> dict[int, str]:
+    env_values = parse_env_file(env_file)
+    seeded: dict[int, str] = {}
+    for instance_id in sorted(MATTERMOST_AUTONOMY_INTERVAL_DEFAULTS):
+        key = instance_override_env_key("OPENCLAW_MINETEST_AUTONOMY_INTERVAL", instance_id)
+        current = env_values.get(key, "").strip()
+        if current:
+            seeded[instance_id] = normalize_minute_interval(current)
+            continue
+        interval = default_mattermost_autonomy_interval_for_instance(base_interval_minutes, instance_id)
+        write_or_update_env_value(env_file, key, interval)
+        seeded[instance_id] = interval
+    return seeded
+
+
+def set_minetest_autonomy_env(env_file: Path, enabled: bool, interval_minutes: int | None = None) -> None:
+    if enabled:
+        write_or_update_env_value(env_file, "OPENCLAW_CHAT_BACKEND", CHAT_BACKEND_MINETEST)
+        write_or_update_env_value(env_file, "OPENCLAW_MINETEST_ENABLED", "true")
+        write_env_value_if_missing(env_file, "OPENCLAW_MINETEST_API_HOST_PORT", DEFAULTS["OPENCLAW_MINETEST_API_HOST_PORT"])
+        write_or_update_env_value(env_file, "OPENCLAW_MINETEST_API_BASE_URL", DEFAULTS["OPENCLAW_MINETEST_API_BASE_URL"])
+        write_or_update_env_value(env_file, "OPENCLAW_MATTERMOST_AUTONOMY_ENABLED", "false")
+        write_or_update_env_value(env_file, "OPENCLAW_MATTERMOST_ENABLED", "false")
+    write_or_update_env_value(env_file, "OPENCLAW_MINETEST_AUTONOMY_ENABLED", "true" if enabled else "false")
+    resolved_interval_minutes = max(1, interval_minutes) if interval_minutes is not None else None
+    if interval_minutes is not None:
+        write_or_update_env_value(env_file, "OPENCLAW_MINETEST_AUTONOMY_INTERVAL", f"{resolved_interval_minutes}m")
+    write_or_update_env_value(env_file, "OPENCLAW_MINETEST_AUTONOMY_LIGHT_CONTEXT", "true")
+    write_or_update_env_value(env_file, "OPENCLAW_MINETEST_AUTONOMY_ISOLATED_SESSION", "true")
+    env_values = {**DEFAULTS, **parse_env_file(env_file)}
+    if resolved_interval_minutes is None:
+        resolved_interval = normalize_minute_interval(env_values.get("OPENCLAW_MINETEST_AUTONOMY_INTERVAL", "6m"))
+        resolved_interval_minutes = int(resolved_interval[:-1])
+    seed_minetest_autonomy_interval_overrides(env_file, resolved_interval_minutes)
+    autonomy_model = env_values.get("OPENCLAW_MINETEST_AUTONOMY_MODEL", "").strip()
+    if not autonomy_model:
+        autonomy_model = resolved_model_ref(env_values) or DEFAULT_MATTERMOST_AUTONOMY_MODEL
+    write_or_update_env_value(env_file, "OPENCLAW_MINETEST_AUTONOMY_MODEL", autonomy_model)
+
+
+def reconcile_heartbeat_instances(
     env_file: Path,
     instance_ids: list[int],
     remove_legacy_cron: bool = True,
@@ -1818,6 +1988,20 @@ def reconcile_mattermost_autonomy_instances(
                 raise SystemExit(f"Failed to reload instance {instance.instance_id} with updated heartbeat config.")
         resolved_instances.append(instance)
     return resolved_instances
+
+
+def reconcile_mattermost_autonomy_instances(
+    env_file: Path,
+    instance_ids: list[int],
+    remove_legacy_cron: bool = True,
+    remove_legacy_autochat: bool = False,
+) -> list[ScaledInstance]:
+    return reconcile_heartbeat_instances(
+        env_file,
+        instance_ids,
+        remove_legacy_cron=remove_legacy_cron,
+        remove_legacy_autochat=remove_legacy_autochat,
+    )
 
 
 def latest_assistant_text(payload: dict[str, object]) -> str:
@@ -1973,10 +2157,27 @@ def scaled_instance_id_from_config(cfg: Config) -> int | None:
     return int(match.group(1))
 
 
+def chat_backend_for(raw_env: dict[str, str]) -> str:
+    backend = raw_env.get("OPENCLAW_CHAT_BACKEND", CHAT_BACKEND_MINETEST).strip().lower()
+    if backend in {CHAT_BACKEND_MINETEST, CHAT_BACKEND_MATTERMOST}:
+        return backend
+    return CHAT_BACKEND_MINETEST
+
+
 def mattermost_autonomy_enabled(cfg: Config, mattermost_enabled: bool) -> bool:
     return (
-        mattermost_enabled
+        chat_backend_for(cfg.raw_env) == CHAT_BACKEND_MATTERMOST
+        and mattermost_enabled
         and truthy_env(cfg.raw_env.get("OPENCLAW_MATTERMOST_AUTONOMY_ENABLED"))
+        and scaled_instance_id_from_config(cfg) is not None
+    )
+
+
+def minetest_autonomy_enabled(cfg: Config) -> bool:
+    return (
+        chat_backend_for(cfg.raw_env) == CHAT_BACKEND_MINETEST
+        and truthy_env(cfg.raw_env.get("OPENCLAW_MINETEST_ENABLED"))
+        and truthy_env(cfg.raw_env.get("OPENCLAW_MINETEST_AUTONOMY_ENABLED"))
         and scaled_instance_id_from_config(cfg) is not None
     )
 
@@ -1987,9 +2188,25 @@ def mattermost_autonomy_heartbeat(cfg: Config) -> dict[str, object]:
         "lightContext": truthy_env(cfg.raw_env.get("OPENCLAW_MATTERMOST_AUTONOMY_LIGHT_CONTEXT")),
         "isolatedSession": truthy_env(cfg.raw_env.get("OPENCLAW_MATTERMOST_AUTONOMY_ISOLATED_SESSION")),
         "target": "none",
-        "prompt": DEFAULT_HEARTBEAT_PROMPT,
+        "prompt": MATTERMOST_HEARTBEAT_PROMPT,
     }
     heartbeat_model = cfg.raw_env.get("OPENCLAW_MATTERMOST_AUTONOMY_MODEL", "").strip()
+    if not heartbeat_model:
+        heartbeat_model = model_ref_for(cfg)
+    if heartbeat_model:
+        heartbeat["model"] = heartbeat_model
+    return heartbeat
+
+
+def minetest_autonomy_heartbeat(cfg: Config) -> dict[str, object]:
+    heartbeat: dict[str, object] = {
+        "every": cfg.raw_env.get("OPENCLAW_MINETEST_AUTONOMY_INTERVAL", "6m").strip() or "6m",
+        "lightContext": truthy_env(cfg.raw_env.get("OPENCLAW_MINETEST_AUTONOMY_LIGHT_CONTEXT")),
+        "isolatedSession": truthy_env(cfg.raw_env.get("OPENCLAW_MINETEST_AUTONOMY_ISOLATED_SESSION")),
+        "target": "none",
+        "prompt": MINETEST_HEARTBEAT_PROMPT,
+    }
+    heartbeat_model = cfg.raw_env.get("OPENCLAW_MINETEST_AUTONOMY_MODEL", "").strip()
     if not heartbeat_model:
         heartbeat_model = model_ref_for(cfg)
     if heartbeat_model:
@@ -2118,6 +2335,39 @@ def load_mattermost_config(env_file: Path) -> MattermostConfig:
     )
 
 
+def minetest_root_dir(raw_env: dict[str, str], env_file: Path) -> Path:
+    root_value = raw_env.get("OPENCLAW_MINETEST_DIR", DEFAULT_MINETEST_DIR)
+    return expand_path(root_value, env_file.parent)
+
+
+def load_minetest_config(env_file: Path) -> MinetestConfig:
+    raw_env = parse_env_file(env_file)
+    return load_minetest_config_from_values(env_file, raw_env)
+
+
+def load_minetest_config_from_values(env_file: Path, raw_env: dict[str, str]) -> MinetestConfig:
+    merged = {**DEFAULTS, **raw_env}
+    root_dir = minetest_root_dir(merged, env_file)
+    container_name = merged.get("OPENCLAW_MINETEST_CONTAINER", DEFAULT_MINETEST_CONTAINER_NAME)
+    return MinetestConfig(
+        env_file=env_file,
+        root_dir=root_dir,
+        pod_name=f"{container_name}-pod",
+        container_name=container_name,
+        image=merged["OPENCLAW_MINETEST_IMAGE"],
+        host_port=int(merged["OPENCLAW_MINETEST_HOST_PORT"]),
+        api_host_port=int(merged["OPENCLAW_MINETEST_API_HOST_PORT"]),
+        api_publish_host=merged["OPENCLAW_MINETEST_API_PUBLISH_HOST"],
+        api_base_url=merged["OPENCLAW_MINETEST_API_BASE_URL"],
+        publish_host=merged["OPENCLAW_MINETEST_PUBLISH_HOST"],
+        network=merged["OPENCLAW_PODMAN_NETWORK"],
+        world_name=merged["OPENCLAW_MINETEST_WORLD_NAME"],
+        gameid=merged["OPENCLAW_MINETEST_GAMEID"],
+        player_client_count=max(0, min(int(merged["OPENCLAW_MINETEST_PLAYER_CLIENT_COUNT"]), 9)),
+        raw_env=merged,
+    )
+
+
 def mattermost_state_values(env_file: Path) -> dict[str, str]:
     root_dir = mattermost_root_dir(parse_env_file(env_file), env_file)
     return parse_env_file(mattermost_state_env_file(root_dir))
@@ -2164,8 +2414,16 @@ def apply_instance_model_overrides(raw_env: dict[str, str], instance_id: int) ->
         instance_override_env_key("OPENCLAW_MATTERMOST_AUTONOMY_MODEL", instance_id),
         "",
     ).strip()
+    minetest_autonomy_override = overrides.get(
+        instance_override_env_key("OPENCLAW_MINETEST_AUTONOMY_MODEL", instance_id),
+        "",
+    ).strip()
     autonomy_interval_override = overrides.get(
         instance_override_env_key("OPENCLAW_MATTERMOST_AUTONOMY_INTERVAL", instance_id),
+        "",
+    ).strip()
+    minetest_autonomy_interval_override = overrides.get(
+        instance_override_env_key("OPENCLAW_MINETEST_AUTONOMY_INTERVAL", instance_id),
         "",
     ).strip()
     gemini_key_override = overrides.get(instance_override_env_key("GEMINI_API_KEY", instance_id), "").strip()
@@ -2181,8 +2439,14 @@ def apply_instance_model_overrides(raw_env: dict[str, str], instance_id: int) ->
         overrides["OPENCLAW_MATTERMOST_AUTONOMY_MODEL"] = autonomy_override
     elif model_override:
         overrides["OPENCLAW_MATTERMOST_AUTONOMY_MODEL"] = model_override
+    if minetest_autonomy_override:
+        overrides["OPENCLAW_MINETEST_AUTONOMY_MODEL"] = minetest_autonomy_override
+    elif model_override:
+        overrides["OPENCLAW_MINETEST_AUTONOMY_MODEL"] = model_override
     if autonomy_interval_override:
         overrides["OPENCLAW_MATTERMOST_AUTONOMY_INTERVAL"] = normalize_minute_interval(autonomy_interval_override)
+    if minetest_autonomy_interval_override:
+        overrides["OPENCLAW_MINETEST_AUTONOMY_INTERVAL"] = normalize_minute_interval(minetest_autonomy_interval_override)
     if gemini_key_override:
         overrides["GEMINI_API_KEY"] = gemini_key_override
     elif google_key_override:
@@ -2197,7 +2461,7 @@ def apply_mattermost_instance_overrides(raw_env: dict[str, str], env_file: Path,
     state_values = mattermost_state_values(env_file)
     token_key = mattermost_token_key_for_instance(instance_id)
     token = state_values.get(token_key)
-    if token:
+    if token and chat_backend_for(overrides) == CHAT_BACKEND_MATTERMOST:
         overrides["OPENCLAW_MATTERMOST_ENABLED"] = "true"
         overrides["OPENCLAW_MATTERMOST_BOT_TOKEN"] = token
     return overrides
@@ -2257,6 +2521,7 @@ def ensure_openclaw_config(cfg: Config) -> None:
 
     gateway = ensure_object(payload, "gateway")
     gateway["mode"] = "local"
+    gateway["bind"] = cfg.gateway_bind
     control_ui = ensure_object(gateway, "controlUi")
     existing_origins = control_ui.get("allowedOrigins")
     if isinstance(existing_origins, list):
@@ -2381,8 +2646,17 @@ def ensure_openclaw_config(cfg: Config) -> None:
         or state_env.get("OPENCLAW_MATTERMOST_BOT_TOKEN", "").strip()
     )
     mattermost_base_url = cfg.raw_env.get("OPENCLAW_MATTERMOST_BASE_URL", "").strip()
-    mattermost_enabled = truthy_env(cfg.raw_env.get("OPENCLAW_MATTERMOST_ENABLED")) or bool(mattermost_token)
-    if mattermost_autonomy_enabled(cfg, mattermost_enabled):
+    mattermost_enabled = (
+        chat_backend_for(cfg.raw_env) == CHAT_BACKEND_MATTERMOST
+        and (truthy_env(cfg.raw_env.get("OPENCLAW_MATTERMOST_ENABLED")) or bool(mattermost_token))
+    )
+    if minetest_autonomy_enabled(cfg):
+        heartbeat_config = minetest_autonomy_heartbeat(cfg)
+        main_agent["heartbeat"] = heartbeat_config
+        for key in ("model", "lightContext", "isolatedSession"):
+            if key in heartbeat_config:
+                default_heartbeat[key] = heartbeat_config[key]
+    elif mattermost_autonomy_enabled(cfg, mattermost_enabled):
         heartbeat_config = mattermost_autonomy_heartbeat(cfg)
         main_agent["heartbeat"] = heartbeat_config
         for key in ("model", "lightContext", "isolatedSession"):
@@ -2428,6 +2702,12 @@ def ensure_openclaw_config(cfg: Config) -> None:
         network["dangerouslyAllowPrivateNetwork"] = truthy_env(
             cfg.raw_env.get("OPENCLAW_MATTERMOST_DANGEROUSLY_ALLOW_PRIVATE_NETWORK")
         )
+    else:
+        channels = payload.get("channels")
+        if isinstance(channels, dict):
+            channels.pop("mattermost", None)
+            if not channels:
+                payload.pop("channels", None)
 
     tools = ensure_object(payload, "tools")
     tools["profile"] = "full"
@@ -2450,6 +2730,10 @@ def ensure_openclaw_config(cfg: Config) -> None:
     if mattermost_enabled and mattermost_token and mattermost_base_url:
         mattermost_entry = ensure_object(entries, "mattermost")
         mattermost_entry["enabled"] = True
+    else:
+        mattermost_entry = entries.get("mattermost")
+        if isinstance(mattermost_entry, dict):
+            mattermost_entry["enabled"] = False
 
     config_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -2555,6 +2839,7 @@ def redact_env_assignment(value: str) -> str:
     if (
         key == "OPENCLAW_GATEWAY_TOKEN"
         or key == "OPENCLAW_MATTERMOST_BOT_TOKEN"
+        or key == "OPENCLAW_MINETEST_AGENT_TOKEN"
         or key.startswith("OPENCLAW_MATTERMOST_BOT_TOKEN_")
         or key in {MATTERMOST_ADMIN_PASSWORD_KEY, MATTERMOST_OPERATOR_PASSWORD_KEY}
         or key.endswith("_API_KEY")
@@ -2669,6 +2954,7 @@ def scaled_instance(env_file: Path, instance_id: int) -> ScaledInstance:
     raw_env["OPENCLAW_PODMAN_BOARD_HOST_PORT"] = str(board_start + (instance_id - 1) * port_step)
     raw_env["OPENCLAW_CONFIG_DIR"] = "."
     raw_env["OPENCLAW_WORKSPACE_DIR"] = "./workspace"
+    raw_env["OPENCLAW_MINETEST_DIR"] = str(minetest_root_dir(merged, env_file))
     raw_env = apply_mattermost_instance_overrides(raw_env, env_file, instance_id)
 
     instance_env_file = instance_root / "control.env"
@@ -2683,6 +2969,16 @@ def scaled_instance(env_file: Path, instance_id: int) -> ScaledInstance:
 
 
 def ensure_scaled_instance_state(instance: ScaledInstance) -> ScaledInstance:
+    if minetest_enabled_for_raw_env(instance.config.raw_env):
+        minetest_cfg = load_minetest_config_from_values(instance.config.env_file, instance.config.raw_env)
+        ensure_minetest_state(minetest_cfg)
+        profile = persona_for_instance(instance.instance_id)
+        account = ensure_minetest_account(minetest_cfg.root_dir, instance.instance_id, profile.display_name)
+        instance.config.raw_env["OPENCLAW_MINETEST_AGENT_ID"] = str(instance.instance_id)
+        instance.config.raw_env["OPENCLAW_MINETEST_AGENT_USERNAME"] = str(account.get("username", ""))
+        instance.config.raw_env["OPENCLAW_MINETEST_AGENT_NAME"] = str(account.get("display_name", profile.display_name))
+        instance.config.raw_env["OPENCLAW_MINETEST_AGENT_TOKEN"] = str(account.get("token", ""))
+        instance.config.raw_env["OPENCLAW_MINETEST_API_BASE_URL"] = minetest_cfg.api_base_url
     cfg = ensure_state(instance.config)
     write_generated_env_file(
         instance.config.env_file,
@@ -2698,6 +2994,7 @@ def ensure_scaled_instance_state(instance: ScaledInstance) -> ScaledInstance:
     )
     scaffold_workspace_files(resolved)
     scaffold_mattermost_tools(resolved)
+    scaffold_minetest_tools(resolved)
     return resolved
 
 
@@ -2706,7 +3003,9 @@ def print_scaled_instance_summary(instance: ScaledInstance) -> None:
     print(f"[instance {instance.instance_id}] pod={instance.pod_name} container={instance.container_name}")
     print(f"  gateway=http://{cfg.publish_host}:{cfg.gateway_port}/ bridge={cfg.publish_host}:{cfg.bridge_port}")
     print(f"  state={cfg.config_dir}")
-    print(f"  mattermost-tools={mattermost_tools_root(instance)}")
+    if chat_backend_for(cfg.raw_env) == CHAT_BACKEND_MATTERMOST:
+        print(f"  mattermost-tools={mattermost_tools_root(instance)}")
+    print(f"  minetest-tools={minetest_tools_root(instance)}")
 
 
 def has_scaled_selection(args: argparse.Namespace) -> bool:
@@ -2745,6 +3044,77 @@ def board_container_name(container_name: str) -> str:
 
 def board_url_for_config(cfg: Config) -> str:
     return f"http://{cfg.publish_host}:{cfg.board_port}/"
+
+
+def minetest_bridge_dir(root_dir: Path) -> Path:
+    return root_dir / "worlds" / DEFAULT_MINETEST_WORLD_NAME / "oni-cadia-bridge"
+
+
+def minetest_actions_dir(root_dir: Path) -> Path:
+    return minetest_bridge_dir(root_dir) / "actions"
+
+
+def minetest_state_file(root_dir: Path) -> Path:
+    return minetest_bridge_dir(root_dir) / "state.json"
+
+
+def minetest_chat_file(root_dir: Path) -> Path:
+    return minetest_bridge_dir(root_dir) / "chat.jsonl"
+
+
+def minetest_accounts_file(root_dir: Path) -> Path:
+    return minetest_bridge_dir(root_dir) / "accounts.json"
+
+
+def minetest_agent_username(instance_id: int) -> str:
+    return {
+        1: "iori",
+        2: "tsumugi",
+        3: "saku",
+        4: "ruri",
+        5: "hibiki",
+        6: "kanae",
+        7: "kimi",
+        8: "qwen",
+        9: "minimax",
+    }.get(instance_id, f"agent_{instance_id:03d}")
+
+
+def load_minetest_accounts(root_dir: Path) -> dict[str, object]:
+    path = minetest_accounts_file(root_dir)
+    if not path.exists():
+        return {"agents": {}}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"agents": {}}
+    return payload if isinstance(payload, dict) else {"agents": {}}
+
+
+def ensure_minetest_account(root_dir: Path, instance_id: int, display_name: str | None = None) -> dict[str, object]:
+    path = minetest_accounts_file(root_dir)
+    payload = load_minetest_accounts(root_dir)
+    agents = payload.get("agents")
+    if not isinstance(agents, dict):
+        agents = {}
+        payload["agents"] = agents
+    key = str(instance_id)
+    account = agents.get(key)
+    if not isinstance(account, dict):
+        account = {}
+        agents[key] = account
+    profile = persona_for_instance(instance_id)
+    account.setdefault("id", instance_id)
+    account.setdefault("username", minetest_agent_username(instance_id))
+    account.setdefault("display_name", display_name or profile.display_name)
+    account.setdefault("token", secrets.token_urlsafe(32))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return account
+
+
+def minetest_enabled_for_raw_env(raw_env: dict[str, str]) -> bool:
+    return truthy_env(raw_env.get("OPENCLAW_MINETEST_ENABLED"))
 
 
 def shared_board_mounts(cfg: Config, instance_label: str) -> tuple[list[dict[str, object]], list[dict[str, object]], Path | None]:
@@ -2990,19 +3360,23 @@ def mattermost_channel_url(cfg: MattermostConfig) -> str:
 
 
 def mattermost_manifest_for(cfg: MattermostConfig) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "name": cfg.pod_name,
+        "labels": {
+            MANAGED_LABEL_KEY: "true",
+            INSTANCE_LABEL_KEY: "mattermost",
+        },
+    }
+    mattermost_userns = cfg.raw_env.get("OPENCLAW_MATTERMOST_USERNS", "").strip()
+    if mattermost_userns:
+        metadata["annotations"] = {
+            "io.podman.annotations.userns": mattermost_userns,
+        }
+
     return {
         "apiVersion": "v1",
         "kind": "Pod",
-        "metadata": {
-            "name": cfg.pod_name,
-            "labels": {
-                MANAGED_LABEL_KEY: "true",
-                INSTANCE_LABEL_KEY: "mattermost",
-            },
-            "annotations": {
-                "io.podman.annotations.userns": cfg.raw_env["OPENCLAW_PODMAN_USERNS"],
-            },
-        },
+        "metadata": metadata,
         "spec": {
             "restartPolicy": "Always",
             "containers": [
@@ -3073,7 +3447,7 @@ def build_mattermost_kube_play_command(cfg: MattermostConfig, ensure_manifest: b
     if ensure_manifest:
         ensure_mattermost_state(cfg)
     command = [podman_bin(), "kube", "play", "--replace", "--no-pod-prefix"]
-    userns = cfg.raw_env.get("OPENCLAW_PODMAN_USERNS", "").strip()
+    userns = cfg.raw_env.get("OPENCLAW_MATTERMOST_USERNS", "").strip()
     if userns:
         command.extend(["--userns", userns])
     if cfg.network.strip():
@@ -3084,6 +3458,254 @@ def build_mattermost_kube_play_command(cfg: MattermostConfig, ensure_manifest: b
 
 def build_mattermost_kube_down_command(cfg: MattermostConfig) -> list[str]:
     return [podman_bin(), "kube", "down", str(mattermost_manifest_path(cfg))]
+
+
+def minetest_manifest_path(cfg: MinetestConfig) -> Path:
+    return cfg.root_dir / "pod.yaml"
+
+
+def minetest_world_dir(cfg: MinetestConfig) -> Path:
+    return cfg.root_dir / "worlds" / cfg.world_name
+
+
+def minetest_host_address(cfg: MinetestConfig) -> str:
+    host = cfg.publish_host
+    if host in {"0.0.0.0", "", "::"}:
+        host = "127.0.0.1"
+    return f"{host}:{cfg.host_port}"
+
+
+def minetest_api_host_address(cfg: MinetestConfig) -> str:
+    host = cfg.api_publish_host
+    if host in {"0.0.0.0", "", "::"}:
+        host = "127.0.0.1"
+    return f"{host}:{cfg.api_host_port}"
+
+
+def minetest_conf_for(cfg: MinetestConfig) -> str:
+    return "\n".join(
+        [
+            "# Generated by openclaw-podman-starter.",
+            "server_name = ONI-CADIA Civilization Lab",
+            "server_description = Minetest-chat-driven ONI-CADIA citizen civilization simulation",
+            "server_announce = false",
+            "creative_mode = true",
+            "enable_damage = false",
+            "default_privs = interact,shout,fly,fast",
+            f"port = {DEFAULT_MINETEST_CONTAINER_PORT}",
+            f"oni_cadia_bridge_dir = {CONTAINER_MINETEST_BRIDGE_SERVER_DIR}",
+            "",
+        ]
+    )
+
+
+def ensure_minetest_state(cfg: MinetestConfig) -> None:
+    cfg.root_dir.mkdir(parents=True, exist_ok=True)
+    minetest_world_dir(cfg).mkdir(parents=True, exist_ok=True)
+    minetest_bridge_dir(cfg.root_dir).mkdir(parents=True, exist_ok=True)
+    minetest_actions_dir(cfg.root_dir).mkdir(parents=True, exist_ok=True)
+    minetest_chat_file(cfg.root_dir).touch(exist_ok=True)
+    for instance_id in range(1, 10):
+        ensure_minetest_account(cfg.root_dir, instance_id, persona_for_instance(instance_id).display_name)
+
+    (cfg.root_dir / "minetest.conf").write_text(minetest_conf_for(cfg), encoding="utf-8")
+    (minetest_world_dir(cfg) / "world.mt").write_text(
+        "\n".join(
+            [
+                f"gameid = {cfg.gameid}",
+                f"world_name = {cfg.world_name}",
+                "backend = sqlite3",
+                "player_backend = sqlite3",
+                "auth_backend = sqlite3",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    state_path = minetest_state_file(cfg.root_dir)
+    if not state_path.exists():
+        state_path.write_text(
+            json.dumps(
+                {
+                    "updated_at": "",
+                    "processed_count": 0,
+                    "agents": {},
+                    "chat_log": [],
+                    "last_action": None,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    minetest_manifest_path(cfg).write_text(
+        json.dumps(minetest_manifest_for(cfg), indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def minetest_manifest_for(cfg: MinetestConfig) -> dict[str, object]:
+    containers: list[dict[str, object]] = [
+        {
+            "name": cfg.container_name,
+            "image": cfg.image,
+            "ports": [
+                {
+                    "name": "minetest",
+                    "containerPort": DEFAULT_MINETEST_CONTAINER_PORT,
+                    "hostPort": cfg.host_port,
+                    "hostIP": cfg.publish_host,
+                    "protocol": "UDP",
+                }
+            ],
+            "env": [
+                {"name": "TZ", "value": cfg.raw_env.get("OPENCLAW_TIMEZONE", "Asia/Tokyo")},
+            ],
+            "volumeMounts": [
+                {
+                    "name": "minetest-state",
+                    "mountPath": CONTAINER_MINETEST_ROOT_DIR,
+                }
+            ],
+        },
+        {
+            "name": f"{cfg.container_name}-api",
+            "image": cfg.image,
+            "command": [
+                "python3",
+                "/usr/local/bin/oni_cadia_api.py",
+            ],
+            "ports": [
+                {
+                    "name": "api",
+                    "containerPort": DEFAULT_MINETEST_API_CONTAINER_PORT,
+                    "hostPort": cfg.api_host_port,
+                    "hostIP": cfg.api_publish_host,
+                    "protocol": "TCP",
+                }
+            ],
+            "env": [
+                {"name": "TZ", "value": cfg.raw_env.get("OPENCLAW_TIMEZONE", "Asia/Tokyo")},
+                {"name": "ONI_CADIA_API_HOST", "value": "0.0.0.0"},
+                {"name": "ONI_CADIA_API_PORT", "value": str(DEFAULT_MINETEST_API_CONTAINER_PORT)},
+                {"name": "ONI_CADIA_BRIDGE_DIR", "value": CONTAINER_MINETEST_BRIDGE_SERVER_DIR},
+            ],
+            "volumeMounts": [
+                {
+                    "name": "minetest-state",
+                    "mountPath": CONTAINER_MINETEST_ROOT_DIR,
+                }
+            ],
+        },
+    ]
+    for instance_id in range(1, cfg.player_client_count + 1):
+        containers.append(
+            {
+                "name": f"{cfg.container_name}-player-{instance_id:03d}",
+                "image": cfg.image,
+                "command": [
+                    "python3",
+                    "/usr/local/bin/oni_cadia_player_client.py",
+                ],
+                "env": [
+                    {"name": "TZ", "value": cfg.raw_env.get("OPENCLAW_TIMEZONE", "Asia/Tokyo")},
+                    {"name": "ONI_CADIA_AGENT_ID", "value": str(instance_id)},
+                    {"name": "ONI_CADIA_SERVER_ADDRESS", "value": "127.0.0.1"},
+                    {"name": "ONI_CADIA_SERVER_PORT", "value": str(DEFAULT_MINETEST_CONTAINER_PORT)},
+                    {"name": "ONI_CADIA_BRIDGE_DIR", "value": CONTAINER_MINETEST_BRIDGE_SERVER_DIR},
+                ],
+                "volumeMounts": [
+                    {
+                        "name": "minetest-state",
+                        "mountPath": CONTAINER_MINETEST_ROOT_DIR,
+                    }
+                ],
+            }
+        )
+    return {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "name": cfg.pod_name,
+            "labels": {
+                MANAGED_LABEL_KEY: "true",
+                INSTANCE_LABEL_KEY: "minetest",
+            },
+        },
+        "spec": {
+            "restartPolicy": "Always",
+            "containers": containers,
+            "volumes": [
+                {
+                    "name": "minetest-state",
+                    "hostPath": {
+                        "path": podman_host_path(cfg.root_dir),
+                        "type": "DirectoryOrCreate",
+                    },
+                }
+            ],
+        },
+    }
+
+
+def build_minetest_image_command(cfg: MinetestConfig) -> list[str]:
+    return [
+        podman_bin(),
+        "build",
+        "-t",
+        cfg.image,
+        "-f",
+        str(MINETEST_CONTAINER_CONTEXT_DIR / "Containerfile"),
+        str(MINETEST_CONTAINER_CONTEXT_DIR),
+    ]
+
+
+def build_minetest_kube_play_command(cfg: MinetestConfig, ensure_manifest: bool = True) -> list[str]:
+    if ensure_manifest:
+        ensure_minetest_state(cfg)
+    command = [podman_bin(), "kube", "play", "--replace", "--no-pod-prefix"]
+    if cfg.network.strip():
+        command.extend(["--network", cfg.network])
+    command.append(str(minetest_manifest_path(cfg)))
+    return command
+
+
+def build_minetest_kube_down_command(cfg: MinetestConfig) -> list[str]:
+    return [podman_bin(), "kube", "down", str(minetest_manifest_path(cfg))]
+
+
+def wait_for_minetest_ready(cfg: MinetestConfig, timeout_seconds: int = 60) -> None:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        if container_running(cfg.container_name):
+            logs = subprocess.run(
+                [podman_bin(), "logs", "--tail", "80", cfg.container_name],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=30,
+            )
+            combined = logs.stdout + logs.stderr
+            if "Server for gameid" in combined or "World at" in combined or "Server listening" in combined:
+                return
+        time.sleep(2)
+    raise SystemExit(f"timed out waiting for Minetest/Luanti server at {minetest_host_address(cfg)}")
+
+
+def wait_for_minetest_api_ready(cfg: MinetestConfig, timeout_seconds: int = 60) -> None:
+    deadline = time.time() + timeout_seconds
+    url = f"http://{minetest_api_host_address(cfg)}/health"
+    last_error = ""
+    while time.time() < deadline:
+        try:
+            with urllib_request.urlopen(url, timeout=2) as response:
+                if response.status == 200:
+                    return
+        except Exception as exc:
+            last_error = str(exc)
+        time.sleep(1)
+    raise SystemExit(f"timed out waiting for Minetest API at {url} ({last_error})")
 
 
 def mattermost_exec(cfg: MattermostConfig, args: list[str], timeout_seconds: int = 120) -> subprocess.CompletedProcess[str]:
@@ -3498,13 +4120,361 @@ def recent_mattermost_channel_posts(cfg: MattermostConfig, token: str, channel_i
     return result
 
 
+def minetest_action_path(cfg: MinetestConfig, instance_id: int) -> Path:
+    return minetest_actions_dir(cfg.root_dir) / f"agent_{instance_id:03d}.jsonl"
+
+
+def append_minetest_action(cfg: MinetestConfig, instance_id: int, action: dict[str, object]) -> dict[str, object]:
+    ensure_minetest_state(cfg)
+    profile = persona_for_instance(instance_id)
+    payload = {
+        "id": action.get("id") or f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{instance_id:03d}-{secrets.token_hex(4)}",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "agent_id": instance_id,
+        "agent_name": profile.display_name,
+        **action,
+    }
+    path = minetest_action_path(cfg, instance_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+    return payload
+
+
+def post_minetest_action_api(cfg: MinetestConfig, instance_id: int, action: dict[str, object]) -> dict[str, object]:
+    account = ensure_minetest_account(cfg.root_dir, instance_id, persona_for_instance(instance_id).display_name)
+    url = f"http://{minetest_api_host_address(cfg)}/agents/{instance_id}/actions"
+    body = json.dumps(action, ensure_ascii=False).encode("utf-8")
+    request = urllib_request.Request(
+        url,
+        data=body,
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "Accept": "application/json",
+            "X-ONI-Agent-Token": str(account.get("token", "")),
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise SystemExit(f"Minetest API returned HTTP {exc.code}: {detail}") from exc
+    except urllib_error.URLError as exc:
+        raise SystemExit(f"Minetest API request failed: {exc}") from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("queued"), dict):
+        raise SystemExit(f"Minetest API returned unexpected payload: {payload}")
+    return payload["queued"]
+
+
+def read_minetest_state(cfg: MinetestConfig) -> dict[str, object]:
+    path = minetest_state_file(cfg.root_dir)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def cmd_minetest_init(args: argparse.Namespace) -> int:
+    ensure_env_file(args.env_file)
+    cfg = load_minetest_config(args.env_file)
+    ensure_minetest_state(cfg)
+    for key, value in (
+        ("OPENCLAW_CHAT_BACKEND", CHAT_BACKEND_MINETEST),
+        ("OPENCLAW_MINETEST_ENABLED", "true"),
+        ("OPENCLAW_MINETEST_DIR", DEFAULTS["OPENCLAW_MINETEST_DIR"]),
+        ("OPENCLAW_MINETEST_CONTAINER", DEFAULTS["OPENCLAW_MINETEST_CONTAINER"]),
+        ("OPENCLAW_MINETEST_IMAGE", DEFAULTS["OPENCLAW_MINETEST_IMAGE"]),
+        ("OPENCLAW_MINETEST_HOST_PORT", DEFAULTS["OPENCLAW_MINETEST_HOST_PORT"]),
+        ("OPENCLAW_MINETEST_API_HOST_PORT", DEFAULTS["OPENCLAW_MINETEST_API_HOST_PORT"]),
+        ("OPENCLAW_MINETEST_API_PUBLISH_HOST", DEFAULTS["OPENCLAW_MINETEST_API_PUBLISH_HOST"]),
+        ("OPENCLAW_MINETEST_API_BASE_URL", DEFAULTS["OPENCLAW_MINETEST_API_BASE_URL"]),
+        ("OPENCLAW_MINETEST_PUBLISH_HOST", DEFAULTS["OPENCLAW_MINETEST_PUBLISH_HOST"]),
+        ("OPENCLAW_MINETEST_WORLD_NAME", DEFAULTS["OPENCLAW_MINETEST_WORLD_NAME"]),
+        ("OPENCLAW_MINETEST_GAMEID", DEFAULTS["OPENCLAW_MINETEST_GAMEID"]),
+    ):
+        write_env_value_if_missing(args.env_file, key, value)
+
+    print("[ok] Minetest/Luanti environment initialized")
+    print_kv("minetest dir", str(cfg.root_dir))
+    print_kv("manifest", str(minetest_manifest_path(cfg)))
+    print_kv("server", minetest_host_address(cfg))
+    print_kv("api", cfg.api_base_url)
+    print_kv("bridge", str(minetest_bridge_dir(cfg.root_dir)))
+    print_kv("network", cfg.network)
+    return 0
+
+
+def cmd_minetest_build(args: argparse.Namespace) -> int:
+    ensure_env_file(args.env_file)
+    cfg = load_minetest_config(args.env_file)
+    command = build_minetest_image_command(cfg)
+    print(command_for_display(command))
+    if args.dry_run:
+        return 0
+    return run_process(command, check=False)
+
+
+def cmd_minetest_launch(args: argparse.Namespace) -> int:
+    ensure_env_file(args.env_file)
+    cfg = load_minetest_config(args.env_file)
+    ensure_minetest_state(cfg)
+    if not podman_available():
+        print("[fail] podman is not installed or not on PATH", file=sys.stderr)
+        return 1
+    if args.build:
+        build_command = build_minetest_image_command(cfg)
+        print(command_for_display(build_command))
+        if not args.dry_run:
+            build_exit = run_process(build_command, check=False)
+            if build_exit != 0:
+                return build_exit
+    if not args.dry_run:
+        ensure_podman_network(cfg.network)
+    command = build_minetest_kube_play_command(cfg, ensure_manifest=not args.dry_run)
+    print(command_for_display(command))
+    if args.dry_run:
+        return 0
+    exit_code = run_process(command, check=False)
+    if exit_code == 0:
+        wait_for_minetest_ready(cfg, timeout_seconds=args.timeout)
+        wait_for_minetest_api_ready(cfg, timeout_seconds=args.timeout)
+        print(f"[ok] Minetest/Luanti reachable at {minetest_host_address(cfg)}")
+        print(f"[ok] ONI-CADIA Minetest API reachable at {cfg.api_base_url}")
+    return exit_code
+
+
+def cmd_minetest_status(args: argparse.Namespace) -> int:
+    ensure_env_file(args.env_file)
+    cfg = load_minetest_config(args.env_file)
+    running = container_running(cfg.container_name)
+    api_running = container_running(f"{cfg.container_name}-api")
+    state = read_minetest_state(cfg)
+    marker = "[ok]" if running and api_running else "[warn]"
+    print(f"{marker} minetest pod={cfg.pod_name} container={cfg.container_name} running={running} api={api_running}")
+    print_kv("server", minetest_host_address(cfg))
+    print_kv("api", cfg.api_base_url)
+    print_kv("bridge", str(minetest_bridge_dir(cfg.root_dir)))
+    print_kv("manifest", str(minetest_manifest_path(cfg)))
+    if state:
+        print_kv("processed actions", str(state.get("processed_count", 0)))
+        agents = state.get("agents", {})
+        if isinstance(agents, dict):
+            print_kv("agents", ", ".join(sorted(agents.keys())) or "(none)")
+        chat_log = state.get("chat_log", [])
+        if isinstance(chat_log, list) and chat_log:
+            latest = chat_log[-1]
+            if isinstance(latest, dict):
+                speaker = str(latest.get("speaker", "")).strip() or str(latest.get("source", "")).strip()
+                message = str(latest.get("message", "")).replace("\n", " ").strip()
+                if speaker or message:
+                    print_kv("latest chat", f"{speaker}: {message}" if speaker else message)
+    return 0 if running and api_running else 1
+
+
+def cmd_minetest_stop(args: argparse.Namespace) -> int:
+    ensure_env_file(args.env_file)
+    cfg = load_minetest_config(args.env_file)
+    command = build_minetest_kube_down_command(cfg)
+    print(command_for_display(command))
+    if args.dry_run:
+        return 0
+    return run_process(command, check=False)
+
+
+def cmd_minetest_smoke(args: argparse.Namespace) -> int:
+    ensure_env_file(args.env_file)
+    cfg = load_minetest_config(args.env_file)
+    if not container_running(cfg.container_name):
+        raise SystemExit("Minetest/Luanti container is not running. Run `openclaw-podman minetest launch --build` first.")
+    wait_for_minetest_api_ready(cfg, timeout_seconds=args.timeout)
+
+    before = int(read_minetest_state(cfg).get("processed_count", 0) or 0)
+    for instance_id in range(1, args.count + 1):
+        profile = persona_for_instance(instance_id)
+        post_minetest_action_api(
+            cfg,
+            instance_id,
+            {
+                "action": "say",
+                "message": f"{profile.display_name}、ONI-CADIA の国土に到着。ここから小さな文明を育てます。",
+            },
+        )
+        post_minetest_action_api(
+            cfg,
+            instance_id,
+            {
+                "action": "move",
+                "direction": ["east", "north", "west", "south"][(instance_id - 1) % 4],
+                "steps": 3,
+            },
+        )
+        post_minetest_action_api(
+            cfg,
+            instance_id,
+            {
+                "action": "build",
+                "shape": ["tower", "house", "plaza"][(instance_id - 1) % 3],
+                "material": ["stone", "wood", "glass"][(instance_id - 1) % 3],
+                "label": f"{profile.display_name} district",
+            },
+        )
+
+    expected = before + args.count * 3
+    deadline = time.time() + args.timeout
+    while time.time() < deadline:
+        state = read_minetest_state(cfg)
+        processed = int(state.get("processed_count", 0) or 0)
+        if processed >= expected:
+            print("[ok] Minetest/Luanti smoke passed")
+            print_kv("server", minetest_host_address(cfg))
+            print_kv("processed actions", str(processed))
+            agents = state.get("agents", {})
+            if isinstance(agents, dict):
+                print_kv("agents", ", ".join(sorted(agents.keys())))
+            return 0
+        time.sleep(2)
+    raise SystemExit(f"timed out waiting for Minetest actions (expected processed_count >= {expected})")
+
+
+def print_recent_minetest_chat(state: dict[str, object], limit: int = 8) -> None:
+    chat_log = state.get("chat_log", [])
+    if not isinstance(chat_log, list) or not chat_log:
+        print("  chat: (none yet)")
+        return
+    for entry in chat_log[-limit:]:
+        if not isinstance(entry, dict):
+            continue
+        speaker = str(entry.get("speaker", "")).strip() or str(entry.get("source", "")).strip()
+        message = str(entry.get("message", "")).replace("\n", " ").strip()
+        source = str(entry.get("source", "")).strip()
+        prefix = speaker
+        if source and source != speaker:
+            prefix = f"{speaker} [{source}]"
+        print(f"  {prefix}: {message[:140]}")
+
+
+def cmd_minetest_lounge_enable(args: argparse.Namespace) -> int:
+    instance_ids = discussion_instance_ids(args.count)
+
+    ensure_env_file(args.env_file)
+    cfg = load_minetest_config(args.env_file)
+    ensure_minetest_state(cfg)
+    if not podman_available():
+        print("[fail] podman is not installed or not on PATH", file=sys.stderr)
+        return 1
+
+    set_minetest_autonomy_env(args.env_file, enabled=True, interval_minutes=args.interval_minutes)
+    instances = reconcile_heartbeat_instances(
+        args.env_file,
+        instance_ids,
+        remove_legacy_cron=True,
+        remove_legacy_autochat=True,
+    )
+    print("[ok] enabled Minetest chat autonomy via heartbeat")
+    print_kv("interval", f"{max(1, args.interval_minutes)}m")
+    print_kv("server", minetest_host_address(cfg))
+    print_kv("api", cfg.api_base_url)
+    for instance in instances:
+        heartbeat = main_agent_heartbeat(instance)
+        print(f"[ok] instance {instance.instance_id} heartbeat ready")
+        print_kv("config", str(instance.config.config_dir / "openclaw.json"))
+        print_kv("heartbeat", json.dumps(heartbeat or {}, ensure_ascii=False))
+    return 0
+
+
+def cmd_minetest_lounge_status(args: argparse.Namespace) -> int:
+    instance_ids = discussion_instance_ids(args.count)
+
+    ensure_env_file(args.env_file)
+    cfg = load_minetest_config(args.env_file)
+    state = read_minetest_state(cfg)
+    env_values = parse_env_file(args.env_file)
+    enabled = truthy_env(env_values.get("OPENCLAW_MINETEST_AUTONOMY_ENABLED"))
+    print_kv("chat backend", chat_backend_for({**DEFAULTS, **env_values}))
+    print_kv("heartbeat autonomy enabled", "true" if enabled else "false")
+    print_kv("heartbeat interval", env_values.get("OPENCLAW_MINETEST_AUTONOMY_INTERVAL", "6m"))
+    print_kv("server", minetest_host_address(cfg))
+    print_kv("api", cfg.api_base_url)
+    print_kv("bridge", str(minetest_bridge_dir(cfg.root_dir)))
+    overall = 0
+    for instance_id in instance_ids:
+        instance = ensure_scaled_instance_state(scaled_instance(args.env_file, instance_id))
+        running = container_running(instance.container_name)
+        marker = "[ok]" if running else "[warn]"
+        print(f"{marker} instance {instance_id}: pod={instance.pod_name} container={instance.container_name} running={running}")
+        heartbeat = main_agent_heartbeat(instance)
+        if heartbeat is None:
+            print("  heartbeat: disabled")
+            overall = 1
+        else:
+            print(f"  heartbeat: {json.dumps(heartbeat, ensure_ascii=False)}")
+    print("recent Minetest chat:")
+    print_recent_minetest_chat(state)
+    return overall
+
+
+def cmd_minetest_lounge_run_now(args: argparse.Namespace) -> int:
+    instance_ids = discussion_instance_ids(args.count)
+
+    ensure_env_file(args.env_file)
+    if not truthy_env(parse_env_file(args.env_file).get("OPENCLAW_MINETEST_AUTONOMY_ENABLED")):
+        raise SystemExit("Minetest heartbeat autonomy is disabled. Run `minetest lounge enable` first.")
+    cfg = load_minetest_config(args.env_file)
+    if not container_running(cfg.container_name):
+        raise SystemExit("Minetest/Luanti container is not running. Run `openclaw-podman minetest launch --build` first.")
+    for instance_id in instance_ids:
+        instance = ensure_scaled_instance_state(scaled_instance(args.env_file, instance_id))
+        if not container_running(instance.container_name):
+            play_command = build_kube_play_command(
+                instance.config,
+                pod_name=instance.pod_name,
+                instance_label=str(instance.instance_id),
+            )
+            exit_code = run_process(play_command, check=False)
+            if exit_code != 0:
+                raise SystemExit(f"Failed to start instance {instance.instance_id} for manual heartbeat wake.")
+        output = run_mattermost_lounge_turn_now(instance, timeout_seconds=max(30, args.timeout_ms // 1000))
+        print(f"[ok] Minetest heartbeat wake instance {instance_id}: {console_safe(output)}")
+
+    if args.wait_seconds > 0:
+        time.sleep(args.wait_seconds)
+
+    print_kv("server", minetest_host_address(cfg))
+    print_recent_minetest_chat(read_minetest_state(cfg))
+    return 0
+
+
+def cmd_minetest_lounge_disable(args: argparse.Namespace) -> int:
+    instance_ids = discussion_instance_ids(args.count)
+
+    ensure_env_file(args.env_file)
+    set_minetest_autonomy_env(args.env_file, enabled=False)
+    instances = reconcile_heartbeat_instances(
+        args.env_file,
+        instance_ids,
+        remove_legacy_cron=True,
+        remove_legacy_autochat=True,
+    )
+    print("[ok] disabled Minetest heartbeat autonomy")
+    for instance in instances:
+        print(f"[ok] instance {instance.instance_id} heartbeat disabled")
+    return 0
+
+
 def cmd_mattermost_init(args: argparse.Namespace) -> int:
     ensure_env_file(args.env_file)
     cfg = load_mattermost_config(args.env_file)
     ensure_mattermost_state(cfg)
     for key, value in (
         ("OPENCLAW_PODMAN_NETWORK", DEFAULT_PODMAN_NETWORK),
+        ("OPENCLAW_CHAT_BACKEND", CHAT_BACKEND_MATTERMOST),
         ("OPENCLAW_MATTERMOST_ENABLED", "true"),
+        ("OPENCLAW_MATTERMOST_USERNS", DEFAULTS["OPENCLAW_MATTERMOST_USERNS"]),
         ("OPENCLAW_MATTERMOST_BASE_URL", DEFAULT_MATTERMOST_BASE_URL),
         ("OPENCLAW_MATTERMOST_CHATMODE", "oncall"),
         ("OPENCLAW_MATTERMOST_DM_POLICY", "open"),
@@ -4556,6 +5526,57 @@ def build_parser() -> argparse.ArgumentParser:
     print_env_parser = subparsers.add_parser("print-env", help="Print single-instance or one scaled instance env values.")
     print_env_parser.add_argument("--instance", type=int, help="Print env for one scaled instance by id.")
     print_env_parser.set_defaults(func=cmd_print_env)
+
+    minetest_parser = subparsers.add_parser("minetest", help="Manage the local Minetest/Luanti civilization server.")
+    minetest_subparsers = minetest_parser.add_subparsers(dest="minetest_command", required=True)
+
+    minetest_init_parser = minetest_subparsers.add_parser("init", help="Prepare Minetest/Luanti world, bridge, and defaults.")
+    minetest_init_parser.set_defaults(func=cmd_minetest_init)
+
+    minetest_build_parser = minetest_subparsers.add_parser("build", help="Build the ONI-CADIA Minetest/Luanti server image.")
+    minetest_build_parser.add_argument("--dry-run", action="store_true", help="Print the build command only.")
+    minetest_build_parser.set_defaults(func=cmd_minetest_build)
+
+    minetest_launch_parser = minetest_subparsers.add_parser("launch", help="Launch the local Minetest/Luanti server pod.")
+    minetest_launch_parser.add_argument("--build", action="store_true", help="Build the image before launching.")
+    minetest_launch_parser.add_argument("--dry-run", action="store_true", help="Print commands only.")
+    minetest_launch_parser.add_argument("--timeout", type=int, default=90, help="Wait this many seconds for readiness (default: 90).")
+    minetest_launch_parser.set_defaults(func=cmd_minetest_launch)
+
+    minetest_status_parser = minetest_subparsers.add_parser("status", help="Show Minetest/Luanti server and bridge status.")
+    minetest_status_parser.set_defaults(func=cmd_minetest_status)
+
+    minetest_stop_parser = minetest_subparsers.add_parser("stop", help="Stop the local Minetest/Luanti server pod.")
+    minetest_stop_parser.add_argument("--dry-run", action="store_true", help="Print the stop command only.")
+    minetest_stop_parser.set_defaults(func=cmd_minetest_stop)
+
+    minetest_smoke_parser = minetest_subparsers.add_parser("smoke", help="Queue chat, movement, and building actions for citizen agents.")
+    minetest_smoke_parser.add_argument("--count", type=int, default=3, help="Number of agents to exercise (default: 3).")
+    minetest_smoke_parser.add_argument("--timeout", type=int, default=90, help="Wait this many seconds for action processing (default: 90).")
+    minetest_smoke_parser.set_defaults(func=cmd_minetest_smoke)
+
+    minetest_lounge_parser = minetest_subparsers.add_parser("lounge", help="Manage heartbeat-driven autonomous Minetest chat.")
+    minetest_lounge_subparsers = minetest_lounge_parser.add_subparsers(dest="minetest_lounge_command", required=True)
+
+    minetest_lounge_enable_parser = minetest_lounge_subparsers.add_parser("enable", help="Enable autonomous Minetest chat/building for the selected agents.")
+    minetest_lounge_enable_parser.add_argument("--count", type=int, help="Scaled instance count to manage (default: 3).")
+    minetest_lounge_enable_parser.add_argument("--interval-minutes", type=int, default=6, help="Heartbeat interval per agent in minutes (default: 6).")
+    minetest_lounge_enable_parser.add_argument("--timeout", type=int, default=300, help="Compatibility placeholder; config is applied immediately and pods are reloaded (default: 300).")
+    minetest_lounge_enable_parser.set_defaults(func=cmd_minetest_lounge_enable)
+
+    minetest_lounge_status_parser = minetest_lounge_subparsers.add_parser("status", help="Show Minetest chat heartbeat status.")
+    minetest_lounge_status_parser.add_argument("--count", type=int, help="Scaled instance count to inspect (default: 3).")
+    minetest_lounge_status_parser.set_defaults(func=cmd_minetest_lounge_status)
+
+    minetest_lounge_run_now_parser = minetest_lounge_subparsers.add_parser("run-now", help="Trigger one immediate Minetest heartbeat wake for each selected agent.")
+    minetest_lounge_run_now_parser.add_argument("--count", type=int, help="Scaled instance count to trigger (default: 3).")
+    minetest_lounge_run_now_parser.add_argument("--timeout-ms", type=int, default=300000, help="Per-turn timeout in ms for direct run-now execution (default: 300000).")
+    minetest_lounge_run_now_parser.add_argument("--wait-seconds", type=int, default=10, help="Wait this many seconds before printing recent chat (default: 10).")
+    minetest_lounge_run_now_parser.set_defaults(func=cmd_minetest_lounge_run_now)
+
+    minetest_lounge_disable_parser = minetest_lounge_subparsers.add_parser("disable", help="Disable autonomous Minetest chat heartbeat.")
+    minetest_lounge_disable_parser.add_argument("--count", type=int, help="Scaled instance count to disable (default: 3).")
+    minetest_lounge_disable_parser.set_defaults(func=cmd_minetest_lounge_disable)
 
     mattermost_parser = subparsers.add_parser("mattermost", help="Manage a local Mattermost pod for OpenClaw channel testing.")
     mattermost_subparsers = mattermost_parser.add_subparsers(dest="mattermost_command", required=True)

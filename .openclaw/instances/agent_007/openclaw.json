@@ -3,7 +3,12 @@
     "defaults": {
       "workspace": "/home/node/.openclaw/workspace",
       "model": {
-        "primary": "nvidia/moonshotai/kimi-k2-thinking"
+        "primary": "zai/glm-5.1",
+        "fallbacks": [
+          "zai/glm-5-turbo",
+          "zai/glm-5",
+          "zai/glm-4.7"
+        ]
       },
       "sandbox": {
         "mode": "off"
@@ -11,8 +16,8 @@
       "heartbeat": {
         "every": "0m",
         "target": "none",
-        "prompt": "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. Think for yourself, choose the best next Mattermost action, and execute it with the available tools when useful. Use the Mattermost helper scripts for state checks, reactions, thread replies, and channel management. Your first step on each heartbeat must be to run get_state.py for your instance and decide from that current JSON only. Do not infer from previous heartbeat errors, previous posts, or previous API failures. If you answer without first running get_state.py in this heartbeat, that is a failure. If rate_limit.limited is false, you must execute exactly one Mattermost helper action in this heartbeat. Your final answer must be only the stdout from the last helper you executed, or HEARTBEAT_OK. Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. Never rely on direct heartbeat delivery for chat text. Never post control text, self-instructions, or explanations about being quiet. Keep the conversation moving on every heartbeat; if the room is quiet, start a new natural line yourself. Never stop because it feels late, quiet, or complete. If you decide not to speak, reply with exactly HEARTBEAT_OK and nothing else. Only reply HEARTBEAT_OK when you are rate-limited or blocked by an API error.",
-        "model": "nvidia/moonshotai/kimi-k2-thinking",
+        "prompt": "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. Think for yourself, choose the best next Minetest/Luanti action, and execute it with the available tools when useful. Use the Minetest API helper scripts for state checks, in-world chat, movement, and civic building. Your first step on each heartbeat must be to run get_state.py from the Minetest tools, through your own agent API token, and decide from that current JSON only. Do not infer from previous heartbeat errors, previous chat lines, or previous API failures. If you answer without first running Minetest get_state.py in this heartbeat, that is a failure. If the current Minetest chat log contains a direct question, mention, request, or civic-building topic, answer inside Minetest with exactly one helper action. If the room is quiet, place exactly one natural in-world chat line or one small movement/building action. Your final answer must be only the stdout from the Minetest helper you executed, or HEARTBEAT_OK if blocked by an API/tool error. Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. Never use Mattermost for this heartbeat, and never write directly to the Minetest bridge queue. Never post control text, self-instructions, or explanations about being quiet. Keep the civilization moving through the Minetest API and in-world chat; if the room is quiet, start a new natural line yourself. Never stop because it feels late, quiet, or complete. Only reply HEARTBEAT_OK when you are blocked by an API or tool error.",
+        "model": "zai/glm-5.1",
         "lightContext": true,
         "isolatedSession": true
       }
@@ -25,8 +30,8 @@
           "lightContext": true,
           "isolatedSession": true,
           "target": "none",
-          "prompt": "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. Think for yourself, choose the best next Mattermost action, and execute it with the available tools when useful. Use the Mattermost helper scripts for state checks, reactions, thread replies, and channel management. Your first step on each heartbeat must be to run get_state.py for your instance and decide from that current JSON only. Do not infer from previous heartbeat errors, previous posts, or previous API failures. If you answer without first running get_state.py in this heartbeat, that is a failure. If rate_limit.limited is false, you must execute exactly one Mattermost helper action in this heartbeat. Your final answer must be only the stdout from the last helper you executed, or HEARTBEAT_OK. Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. Never rely on direct heartbeat delivery for chat text. Never post control text, self-instructions, or explanations about being quiet. Keep the conversation moving on every heartbeat; if the room is quiet, start a new natural line yourself. Never stop because it feels late, quiet, or complete. If you decide not to speak, reply with exactly HEARTBEAT_OK and nothing else. Only reply HEARTBEAT_OK when you are rate-limited or blocked by an API error.",
-          "model": "nvidia/moonshotai/kimi-k2-thinking"
+          "prompt": "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. Think for yourself, choose the best next Minetest/Luanti action, and execute it with the available tools when useful. Use the Minetest API helper scripts for state checks, in-world chat, movement, and civic building. Your first step on each heartbeat must be to run get_state.py from the Minetest tools, through your own agent API token, and decide from that current JSON only. Do not infer from previous heartbeat errors, previous chat lines, or previous API failures. If you answer without first running Minetest get_state.py in this heartbeat, that is a failure. If the current Minetest chat log contains a direct question, mention, request, or civic-building topic, answer inside Minetest with exactly one helper action. If the room is quiet, place exactly one natural in-world chat line or one small movement/building action. Your final answer must be only the stdout from the Minetest helper you executed, or HEARTBEAT_OK if blocked by an API/tool error. Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. Never use Mattermost for this heartbeat, and never write directly to the Minetest bridge queue. Never post control text, self-instructions, or explanations about being quiet. Keep the civilization moving through the Minetest API and in-world chat; if the room is quiet, start a new natural line yourself. Never stop because it feels late, quiet, or complete. Only reply HEARTBEAT_OK when you are blocked by an API or tool error.",
+          "model": "zai/glm-5.1"
         }
       }
     ]
@@ -35,41 +40,17 @@
     "mode": "local",
     "controlUi": {
       "allowedOrigins": [
+        "http://127.0.0.1:28801",
+        "http://localhost:28801",
         "http://127.0.0.1:18801",
         "http://localhost:18801"
       ]
-    }
+    },
+    "bind": "lan"
   },
   "auth": {
     "cooldowns": {
       "rateLimitedProfileRotations": 10
-    }
-  },
-  "models": {
-    "providers": {
-      "nvidia": {
-        "api": "openai-completions",
-        "baseUrl": "https://integrate.api.nvidia.com/v1",
-        "apiKey": "${NVIDIA_API_KEY}",
-        "models": [
-          {
-            "id": "moonshotai/kimi-k2-thinking",
-            "name": "Moonshotai/Kimi K2 Thinking",
-            "reasoning": false,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0,
-              "output": 0,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "contextWindow": 131072,
-            "maxTokens": 1310720
-          }
-        ]
-      }
     }
   },
   "tools": {
@@ -86,29 +67,13 @@
   "plugins": {
     "entries": {
       "nvidia": {
-        "enabled": true
+        "enabled": false
       },
       "mattermost": {
-        "enabled": true
-      }
-    }
-  },
-  "channels": {
-    "mattermost": {
-      "enabled": true,
-      "botToken": "${OPENCLAW_MATTERMOST_BOT_TOKEN}",
-      "baseUrl": "http://mattermost:8065",
-      "chatmode": "oncall",
-      "dmPolicy": "open",
-      "groupPolicy": "open",
-      "replyToMode": "all",
-      "groups": {
-        "*": {
-          "requireMention": true
-        }
+        "enabled": false
       },
-      "network": {
-        "dangerouslyAllowPrivateNetwork": true
+      "zai": {
+        "enabled": true
       }
     }
   }

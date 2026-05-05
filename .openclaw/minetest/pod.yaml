@@ -1,0 +1,415 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "oni-cadia-minetest-pod",
+    "labels": {
+      "io.openclaw-podman.managed": "true",
+      "io.openclaw-podman.instance": "minetest"
+    }
+  },
+  "spec": {
+    "restartPolicy": "Always",
+    "containers": [
+      {
+        "name": "oni-cadia-minetest",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "ports": [
+          {
+            "name": "minetest",
+            "containerPort": 30000,
+            "hostPort": 30000,
+            "hostIP": "0.0.0.0",
+            "protocol": "UDP"
+          }
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-api",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_api.py"
+        ],
+        "ports": [
+          {
+            "name": "api",
+            "containerPort": 30800,
+            "hostPort": 30800,
+            "hostIP": "127.0.0.1",
+            "protocol": "TCP"
+          }
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_API_HOST",
+            "value": "0.0.0.0"
+          },
+          {
+            "name": "ONI_CADIA_API_PORT",
+            "value": "30800"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-001",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-002",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "2"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-003",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "3"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-004",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "4"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-005",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "5"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-006",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "6"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-007",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "7"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-008",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "8"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      },
+      {
+        "name": "oni-cadia-minetest-player-009",
+        "image": "localhost/oni-cadia-minetest:latest",
+        "command": [
+          "python3",
+          "/usr/local/bin/oni_cadia_player_client.py"
+        ],
+        "env": [
+          {
+            "name": "TZ",
+            "value": "Asia/Tokyo"
+          },
+          {
+            "name": "ONI_CADIA_AGENT_ID",
+            "value": "9"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_ADDRESS",
+            "value": "127.0.0.1"
+          },
+          {
+            "name": "ONI_CADIA_SERVER_PORT",
+            "value": "30000"
+          },
+          {
+            "name": "ONI_CADIA_BRIDGE_DIR",
+            "value": "/var/lib/minetest/.minetest/worlds/oni-cadia/oni-cadia-bridge"
+          }
+        ],
+        "volumeMounts": [
+          {
+            "name": "minetest-state",
+            "mountPath": "/var/lib/minetest/.minetest"
+          }
+        ]
+      }
+    ],
+    "volumes": [
+      {
+        "name": "minetest-state",
+        "hostPath": {
+          "path": "/home/maki/codex-workspace/ONI-CADIA-Craft/.openclaw/minetest",
+          "type": "DirectoryOrCreate"
+        }
+      }
+    ]
+  }
+}

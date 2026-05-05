@@ -21,14 +21,14 @@
           {
             "name": "gateway",
             "containerPort": 18789,
-            "hostPort": 18801,
+            "hostPort": 28801,
             "hostIP": "127.0.0.1",
             "protocol": "TCP"
           },
           {
             "name": "bridge",
             "containerPort": 18790,
-            "hostPort": 18802,
+            "hostPort": 28802,
             "hostIP": "127.0.0.1",
             "protocol": "TCP"
           }
@@ -55,7 +55,7 @@
       {
         "name": "openclaw-state",
         "hostPath": {
-          "path": "/mnt/d/Prj/ARCADIA/.openclaw/instances/agent_007",
+          "path": "/home/maki/codex-workspace/ONI-CADIA-Craft/.openclaw/instances/agent_007",
           "type": "DirectoryOrCreate"
         }
       }

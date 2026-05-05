@@ -36,5 +36,7 @@ docs/.vitepress/cache/
 !.openclaw/instances/shared-board/README.md
 !.openclaw/mattermost/
 !.openclaw/mattermost/pod.yaml
+!.openclaw/minetest/
+!.openclaw/minetest/pod.yaml
 
 .zai-rotation-out/

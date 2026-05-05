@@ -194,7 +194,8 @@ class CliTests(unittest.TestCase):
                 self.assertIn(f"**名前:** {name}", identity_text)
                 self.assertIn("**国家:** ONI-CADIA", identity_text)
                 self.assertIn("**知性:** 知的生命体", identity_text)
-                self.assertIn(cli.CONTAINER_MATTERMOST_TOOLS_DIR, tools_text)
+                self.assertIn(cli.CONTAINER_MINETEST_TOOLS_DIR, tools_text)
+                self.assertIn("Minetest / Luanti 国土チャット", tools_text)
 
     def test_scaled_instance_manifest_no_longer_mounts_shared_board(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,6 +245,10 @@ class CliTests(unittest.TestCase):
             temp_root = Path(tmp)
             env_file = temp_root / ".env"
             write_env_file(env_file)
+            env_file.write_text(
+                env_file.read_text(encoding="utf-8") + "OPENCLAW_CHAT_BACKEND=mattermost\n",
+                encoding="utf-8",
+            )
 
             mattermost_root = temp_root / ".openclaw" / "mattermost"
             mattermost_root.mkdir(parents=True)
@@ -273,6 +278,21 @@ class CliTests(unittest.TestCase):
             self.assertEqual(values["OPENCLAW_MATTERMOST_AUTONOMY_INTERVAL_INSTANCE_005"], "15m")
             self.assertEqual(values["OPENCLAW_MATTERMOST_AUTONOMY_INTERVAL_INSTANCE_006"], "60m")
 
+    def test_set_minetest_autonomy_env_uses_minetest_chat_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp_root = Path(tmp)
+            env_file = temp_root / ".env"
+            write_env_file(env_file)
+
+            cli.set_minetest_autonomy_env(env_file, enabled=True, interval_minutes=6)
+            values = cli.parse_env_file(env_file)
+
+            self.assertEqual(values["OPENCLAW_CHAT_BACKEND"], "minetest")
+            self.assertEqual(values["OPENCLAW_MINETEST_ENABLED"], "true")
+            self.assertEqual(values["OPENCLAW_MINETEST_AUTONOMY_ENABLED"], "true")
+            self.assertEqual(values["OPENCLAW_MATTERMOST_AUTONOMY_ENABLED"], "false")
+            self.assertEqual(values["OPENCLAW_MINETEST_AUTONOMY_INTERVAL_INSTANCE_001"], "20m")
+
     def test_scaled_instance_applies_autonomy_interval_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             temp_root = Path(tmp)
@@ -294,6 +314,7 @@ class CliTests(unittest.TestCase):
             env_text = env_file.read_text(encoding="utf-8")
             env_text += "\n".join(
                 [
+                    "OPENCLAW_CHAT_BACKEND=mattermost",
                     "OPENCLAW_MATTERMOST_ENABLED=true",
                     "OPENCLAW_MATTERMOST_BASE_URL=http://mattermost:8065",
                     "OPENCLAW_MATTERMOST_BOT_TOKEN=test-bot-token",
@@ -311,6 +332,7 @@ class CliTests(unittest.TestCase):
                 payload["channels"]["mattermost"]["botToken"],
                 "${OPENCLAW_MATTERMOST_BOT_TOKEN}",
             )
+            self.assertEqual(payload["gateway"]["bind"], "lan")
             self.assertEqual(payload["channels"]["mattermost"]["chatmode"], "oncall")
             self.assertEqual(payload["channels"]["mattermost"]["groups"]["*"]["requireMention"], True)
             self.assertEqual(payload["channels"]["mattermost"]["network"]["dangerouslyAllowPrivateNetwork"], True)
@@ -328,6 +350,7 @@ class CliTests(unittest.TestCase):
                     "OPENCLAW_OPENROUTER_BASE_URL=https://openrouter.ai/api/v1",
                     "OPENROUTER_API_KEY=test-openrouter-key",
                     "ZAI_API_KEY=test-zai-key",
+                    "OPENCLAW_CHAT_BACKEND=mattermost",
                     "OPENCLAW_MATTERMOST_ENABLED=true",
                     "OPENCLAW_MATTERMOST_BASE_URL=http://mattermost:8065",
                     "",
@@ -360,6 +383,7 @@ class CliTests(unittest.TestCase):
                 openclaw_payload["channels"]["mattermost"]["botToken"],
                 "${OPENCLAW_MATTERMOST_BOT_TOKEN}",
             )
+            self.assertEqual(openclaw_payload["gateway"]["bind"], "lan")
             self.assertNotIn("meta", openclaw_payload)
 
             env_entries = {
@@ -588,6 +612,105 @@ class CliTests(unittest.TestCase):
             expected_manifest = os.path.normcase(os.path.realpath(str(temp_root / ".openclaw" / "mattermost" / "pod.yaml")))
             actual_manifest = os.path.normcase(os.path.realpath(str(cli.mattermost_manifest_path(cfg))))
             self.assertEqual(actual_manifest, expected_manifest)
+
+    def test_mattermost_manifest_omits_userns_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp_root = Path(tmp)
+            env_file = temp_root / ".env"
+            write_env_file(env_file)
+
+            cfg = cli.load_mattermost_config(env_file)
+            manifest = cli.mattermost_manifest_for(cfg)
+            command = cli.build_mattermost_kube_play_command(cfg, ensure_manifest=False)
+
+            self.assertNotIn("annotations", manifest["metadata"])
+            self.assertNotIn("--userns", command)
+
+    def test_mattermost_manifest_allows_userns_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp_root = Path(tmp)
+            env_file = temp_root / ".env"
+            write_env_file(env_file)
+            env_file.write_text(
+                env_file.read_text(encoding="utf-8") + "OPENCLAW_MATTERMOST_USERNS=keep-id\n",
+                encoding="utf-8",
+            )
+
+            cfg = cli.load_mattermost_config(env_file)
+            manifest = cli.mattermost_manifest_for(cfg)
+            command = cli.build_mattermost_kube_play_command(cfg, ensure_manifest=False)
+
+            self.assertEqual(manifest["metadata"]["annotations"]["io.podman.annotations.userns"], "keep-id")
+            self.assertIn("--userns", command)
+            self.assertIn("keep-id", command)
+
+    def test_minetest_state_and_manifest_are_generated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp_root = Path(tmp)
+            env_file = temp_root / ".env"
+            write_env_file(env_file)
+
+            cfg = cli.load_minetest_config(env_file)
+            cli.ensure_minetest_state(cfg)
+            manifest = json.loads(cli.minetest_manifest_path(cfg).read_text(encoding="utf-8"))
+
+            self.assertTrue((cfg.root_dir / "minetest.conf").exists())
+            self.assertTrue((cli.minetest_world_dir(cfg) / "world.mt").exists())
+            self.assertTrue(cli.minetest_state_file(cfg.root_dir).exists())
+            self.assertTrue(cli.minetest_chat_file(cfg.root_dir).exists())
+            self.assertTrue(cli.minetest_accounts_file(cfg.root_dir).exists())
+            state = json.loads(cli.minetest_state_file(cfg.root_dir).read_text(encoding="utf-8"))
+            self.assertEqual(state["chat_log"], [])
+            self.assertEqual(manifest["spec"]["containers"][0]["ports"][0]["protocol"], "UDP")
+            self.assertEqual(manifest["spec"]["containers"][0]["ports"][0]["hostPort"], cli.DEFAULT_MINETEST_HOST_PORT)
+            self.assertEqual(manifest["spec"]["containers"][1]["ports"][0]["protocol"], "TCP")
+            self.assertEqual(manifest["spec"]["containers"][1]["ports"][0]["hostPort"], cli.DEFAULT_MINETEST_API_HOST_PORT)
+
+    def test_scaled_instance_uses_minetest_api_account_when_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp_root = Path(tmp)
+            env_file = temp_root / ".env"
+            write_env_file(env_file)
+            env_file.write_text(
+                env_file.read_text(encoding="utf-8")
+                + "\n".join(
+                    [
+                        "OPENCLAW_MINETEST_ENABLED=true",
+                        "OPENCLAW_MINETEST_DIR=./minetest",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            resolved = cli.ensure_scaled_instance_state(cli.scaled_instance(env_file, 1))
+            manifest = json.loads((resolved.config.config_dir / "pod.yaml").read_text(encoding="utf-8"))
+            volume_mounts = manifest["spec"]["containers"][0]["volumeMounts"]
+            volumes = manifest["spec"]["volumes"]
+            state_env = cli.parse_env_file(resolved.config.config_dir / ".env")
+            control_env = cli.parse_env_file(resolved.config.env_file)
+
+            self.assertNotIn({"name": "minetest-bridge", "mountPath": cli.CONTAINER_MINETEST_BRIDGE_DIR}, volume_mounts)
+            self.assertFalse(any(volume["name"] == "minetest-bridge" for volume in volumes))
+            self.assertEqual(control_env["OPENCLAW_MINETEST_AGENT_ID"], "1")
+            self.assertEqual(control_env["OPENCLAW_MINETEST_AGENT_USERNAME"], "iori")
+            self.assertIn("OPENCLAW_MINETEST_AGENT_TOKEN", state_env)
+            self.assertNotIn("OPENCLAW_MINETEST_AGENT_TOKEN", control_env)
+            self.assertTrue((resolved.config.config_dir / "minetest-tools" / "act.py").exists())
+
+    def test_append_minetest_action_writes_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp_root = Path(tmp)
+            env_file = temp_root / ".env"
+            write_env_file(env_file)
+            cfg = cli.load_minetest_config(env_file)
+
+            payload = cli.append_minetest_action(cfg, 2, {"action": "build", "shape": "tower"})
+            lines = cli.minetest_action_path(cfg, 2).read_text(encoding="utf-8").splitlines()
+
+            self.assertEqual(payload["agent_name"], "つむぎ")
+            self.assertEqual(len(lines), 1)
+            self.assertEqual(json.loads(lines[0])["shape"], "tower")
 
     def test_mattermost_persona_usernames_use_romanized_handles(self) -> None:
         self.assertEqual(cli.mattermost_persona_username(1), "iori")

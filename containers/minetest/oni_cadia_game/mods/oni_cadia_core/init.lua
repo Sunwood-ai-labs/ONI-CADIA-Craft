@@ -1,0 +1,1018 @@
+local modname = minetest.get_current_modname()
+local bridge_dir = minetest.settings:get("oni_cadia_bridge_dir")
+if bridge_dir == nil or bridge_dir == "" then
+	bridge_dir = minetest.get_worldpath() .. "/oni-cadia-bridge"
+end
+local actions_dir = bridge_dir .. "/actions"
+local state_path = bridge_dir .. "/state.json"
+local chat_path = bridge_dir .. "/chat.jsonl"
+local processed_path = bridge_dir .. "/processed.json"
+local cleanup_marker_path = bridge_dir .. "/legacy-static-citizens-cleared-v1"
+
+minetest.mkdir(bridge_dir)
+minetest.mkdir(actions_dir)
+
+local processed = {}
+local processed_count = 0
+local agents = {}
+local persisted_agent_positions = {}
+local chat_log = {}
+local last_action = nil
+local tick = 0
+local max_chat_log = 80
+local previous_processed_count = 0
+local citizen_stand_offset = 1.3
+local surface_search_min_y = -32
+local surface_search_max_y = 80
+local surface_search_radius = 96
+
+local profiles = {
+	[1] = { username = "iori", name = "いおり", color = "#8fd3ff", origin = { x = -8, y = 3, z = 0 }, material = "oni_cadia_core:stone" },
+	[2] = { username = "tsumugi", name = "つむぎ", color = "#ffd479", origin = { x = 0, y = 3, z = 8 }, material = "oni_cadia_core:wood" },
+	[3] = { username = "saku", name = "さく", color = "#b7ff9a", origin = { x = 8, y = 3, z = 0 }, material = "oni_cadia_core:glass" },
+	[4] = { username = "ruri", name = "るり", color = "#b5a4ff", origin = { x = 0, y = 3, z = -8 }, material = "oni_cadia_core:brick" },
+	[5] = { username = "hibiki", name = "ひびき", color = "#ff9a9a", origin = { x = -12, y = 3, z = 8 }, material = "oni_cadia_core:light" },
+	[6] = { username = "kanae", name = "かなえ", color = "#9affdf", origin = { x = 12, y = 3, z = -8 }, material = "oni_cadia_core:grass" },
+	[7] = { username = "kimi", name = "きみ", color = "#f4a7ff", origin = { x = -16, y = 3, z = -8 }, material = "oni_cadia_core:brick" },
+	[8] = { username = "qwen", name = "くえん", color = "#a7c7ff", origin = { x = 16, y = 3, z = 8 }, material = "oni_cadia_core:stone" },
+	[9] = { username = "minimax", name = "みにま", color = "#fff4a7", origin = { x = 0, y = 3, z = 16 }, material = "oni_cadia_core:light" },
+}
+
+local palette = {
+	stone = "oni_cadia_core:stone",
+	wood = "oni_cadia_core:wood",
+	glass = "oni_cadia_core:glass",
+	brick = "oni_cadia_core:brick",
+	light = "oni_cadia_core:light",
+	grass = "oni_cadia_core:grass",
+	road = "oni_cadia_core:road",
+}
+
+local function texture(color)
+	return "[fill:16x16:" .. color
+end
+
+minetest.register_node("oni_cadia_core:grass", {
+	description = "ONI-CADIA Grass",
+	tiles = { texture("#4d9f57") },
+	groups = { crumbly = 3 },
+})
+
+minetest.register_node("oni_cadia_core:stone", {
+	description = "ONI-CADIA Stone",
+	tiles = { texture("#7d8794") },
+	groups = { cracky = 2 },
+})
+
+minetest.register_node("oni_cadia_core:wood", {
+	description = "ONI-CADIA Wood",
+	tiles = { texture("#a66a3f") },
+	groups = { choppy = 2 },
+})
+
+minetest.register_node("oni_cadia_core:glass", {
+	description = "ONI-CADIA Glass",
+	tiles = { texture("#8fd3ff") },
+	drawtype = "glasslike",
+	paramtype = "light",
+	sunlight_propagates = true,
+	use_texture_alpha = "blend",
+	groups = { cracky = 3 },
+})
+
+minetest.register_node("oni_cadia_core:brick", {
+	description = "ONI-CADIA Brick",
+	tiles = { texture("#bd5c5c") },
+	groups = { cracky = 2 },
+})
+
+minetest.register_node("oni_cadia_core:road", {
+	description = "ONI-CADIA Road",
+	tiles = { texture("#2f3542") },
+	groups = { cracky = 2 },
+})
+
+minetest.register_node("oni_cadia_core:light", {
+	description = "ONI-CADIA Civic Light",
+	tiles = { texture("#ffe66d") },
+	light_source = 12,
+	groups = { cracky = 2 },
+})
+
+minetest.register_alias("mapgen_stone", "oni_cadia_core:stone")
+minetest.register_alias("mapgen_water_source", "air")
+minetest.register_alias("mapgen_river_water_source", "air")
+
+local function round_coord(value)
+	return math.floor((tonumber(value) or 0) + 0.5)
+end
+
+local function copy_pos(pos)
+	return { x = round_coord(pos.x), y = round_coord(pos.y), z = round_coord(pos.z) }
+end
+
+local function object_pos(object)
+	if not object then
+		return nil
+	end
+	local ok, pos = pcall(function()
+		return object:get_pos()
+	end)
+	if ok and pos then
+		return pos
+	end
+	return nil
+end
+
+local function distance_squared(a, b)
+	if not a or not b then
+		return math.huge
+	end
+	local dx = (a.x or 0) - (b.x or 0)
+	local dy = (a.y or 0) - (b.y or 0)
+	local dz = (a.z or 0) - (b.z or 0)
+	return dx * dx + dy * dy + dz * dz
+end
+
+local function agent_key(agent_id)
+	return string.format("agent_%03d", tonumber(agent_id) or 0)
+end
+
+local function profile_for(agent_id, agent_name)
+	local id = tonumber(agent_id) or 1
+	local profile = profiles[id] or {
+		username = "agent_" .. tostring(id),
+		name = agent_name or ("agent_" .. tostring(id)),
+		color = "#ffffff",
+		origin = { x = (id - 1) * 4, y = 3, z = 12 },
+		material = "oni_cadia_core:stone",
+	}
+	if agent_name and agent_name ~= "" then
+		profile.name = agent_name
+	end
+	return profile
+end
+
+local function load_previous_state()
+	local handle = io.open(state_path, "r")
+	if not handle then
+		return
+	end
+	local payload = minetest.parse_json(handle:read("*a") or "")
+	handle:close()
+	if type(payload) ~= "table" then
+		return
+	end
+	previous_processed_count = tonumber(payload.processed_count) or 0
+	if type(payload.chat_log) == "table" then
+		chat_log = payload.chat_log
+	end
+	if type(payload.agents) ~= "table" then
+		return
+	end
+	for key, agent in pairs(payload.agents) do
+		if type(agent) == "table" and type(agent.pos) == "table" then
+			persisted_agent_positions[key] = copy_pos(agent.pos)
+		end
+	end
+end
+
+local function save_processed()
+	local ids = {}
+	for id, done in pairs(processed) do
+		if done then
+			table.insert(ids, id)
+		end
+	end
+	table.sort(ids)
+	minetest.safe_file_write(processed_path, minetest.write_json({
+		updated_at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+		processed_count = processed_count,
+		ids = ids,
+	}, true) .. "\n")
+end
+
+local function load_processed()
+	local handle = io.open(processed_path, "r")
+	if not handle then
+		return false
+	end
+	local payload = minetest.parse_json(handle:read("*a") or "")
+	handle:close()
+	if type(payload) ~= "table" then
+		return false
+	end
+	if type(payload.ids) == "table" then
+		for _, id in ipairs(payload.ids) do
+			processed[tostring(id)] = true
+		end
+	elseif type(payload.processed) == "table" then
+		for id, done in pairs(payload.processed) do
+			if done then
+				processed[tostring(id)] = true
+			end
+		end
+	end
+	processed_count = tonumber(payload.processed_count) or previous_processed_count or 0
+	return true
+end
+
+local function seed_existing_actions_as_processed()
+	local count = 0
+	local files = minetest.get_dir_list(actions_dir, false) or {}
+	table.sort(files)
+	for _, filename in ipairs(files) do
+		if filename:sub(-6) == ".jsonl" then
+			local path = actions_dir .. "/" .. filename
+			local handle = io.open(path, "r")
+			if handle then
+				local index = 0
+				for line in handle:lines() do
+					index = index + 1
+					if line and line ~= "" then
+						local action = minetest.parse_json(line)
+						local id = nil
+						if type(action) == "table" then
+							id = tostring(action.id or (filename .. ":" .. index))
+						else
+							id = filename .. ":" .. tostring(index)
+						end
+						if not processed[id] then
+							processed[id] = true
+							count = count + 1
+						end
+					end
+				end
+				handle:close()
+			end
+		end
+	end
+	if count > 0 then
+		processed_count = math.max(processed_count, count, previous_processed_count)
+	end
+	save_processed()
+end
+
+local function file_exists(path)
+	local handle = io.open(path, "r")
+	if handle then
+		handle:close()
+		return true
+	end
+	return false
+end
+
+local function clear_legacy_static_objects_once()
+	if file_exists(cleanup_marker_path) then
+		return
+	end
+	if type(minetest.clear_objects) ~= "function" then
+		minetest.safe_file_write(cleanup_marker_path, "clear_objects unavailable\n")
+		return
+	end
+	local ok, err = pcall(function()
+		minetest.clear_objects({ mode = "full" })
+	end)
+	if not ok then
+		ok, err = pcall(function()
+			minetest.clear_objects("full")
+		end)
+	end
+	if ok then
+		minetest.safe_file_write(cleanup_marker_path, os.date("!%Y-%m-%dT%H:%M:%SZ") .. "\n")
+	else
+		minetest.log("warning", "[" .. modname .. "] failed to clear legacy static citizens: " .. tostring(err))
+	end
+end
+
+local function node_and_def(pos)
+	local target = copy_pos(pos)
+	local node = minetest.get_node_or_nil(target)
+	if not node then
+		minetest.load_area(target)
+		node = minetest.get_node_or_nil(target)
+	end
+	if not node then
+		return nil, nil
+	end
+	return node, minetest.registered_nodes[node.name] or {}
+end
+
+local function is_walkable(pos)
+	local node, def = node_and_def(pos)
+	if not node or node.name == "air" or node.name == "ignore" then
+		return false
+	end
+	return def.walkable ~= false
+end
+
+local function is_open(pos)
+	local node, def = node_and_def(pos)
+	if not node or node.name == "ignore" then
+		return false
+	end
+	return node.name == "air" or def.walkable == false
+end
+
+local function surface_y_at(x, z)
+	local px = round_coord(x)
+	local pz = round_coord(z)
+	if math.abs(px) > surface_search_radius or math.abs(pz) > surface_search_radius then
+		return nil
+	end
+	minetest.load_area(
+		{ x = px, y = surface_search_min_y, z = pz },
+		{ x = px, y = surface_search_max_y + 8, z = pz }
+	)
+	for y = surface_search_max_y, surface_search_min_y, -1 do
+		if is_walkable({ x = px, y = y, z = pz })
+			and is_open({ x = px, y = y + 1, z = pz })
+			and is_open({ x = px, y = y + 2, z = pz }) then
+			return y
+		end
+	end
+	return nil
+end
+
+local function is_agent_slot_occupied(x, z, skip_key)
+	for key, agent in pairs(agents) do
+		if key ~= skip_key then
+			local pos = object_pos(agent.object) or agent.pos
+			if pos and round_coord(pos.x) == x and round_coord(pos.z) == z then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function find_surface_near(pos, skip_key)
+	local base_x = math.max(-surface_search_radius + 2, math.min(surface_search_radius - 2, round_coord(pos.x)))
+	local base_z = math.max(-surface_search_radius + 2, math.min(surface_search_radius - 2, round_coord(pos.z)))
+	local fallback = nil
+	for radius = 0, 18 do
+		for dx = -radius, radius do
+			for dz = -radius, radius do
+				if radius == 0 or math.abs(dx) == radius or math.abs(dz) == radius then
+					local x = base_x + dx
+					local z = base_z + dz
+					local surface_y = surface_y_at(x, z)
+					if surface_y and not is_agent_slot_occupied(x, z, skip_key) then
+						fallback = fallback or { x = x, z = z, surface_y = surface_y }
+						return { x = x, z = z, surface_y = surface_y }
+					end
+				end
+			end
+		end
+	end
+	if fallback then
+		return fallback
+	end
+	return { x = base_x, z = base_z, surface_y = 1 }
+end
+
+local function stand_pos_near(pos, skip_key)
+	local surface = find_surface_near(pos, skip_key)
+	return { x = surface.x, y = surface.surface_y + citizen_stand_offset, z = surface.z }, surface
+end
+
+local function ground_info(pos)
+	if not pos then
+		return { grounded = false }
+	end
+	local x = round_coord(pos.x)
+	local z = round_coord(pos.z)
+	local surface_y = surface_y_at(x, z)
+	if not surface_y then
+		return { grounded = false, x = x, z = z }
+	end
+	local expected_y = surface_y + citizen_stand_offset
+	return {
+		grounded = (pos.y or 0) >= surface_y + 0.4 and (pos.y or 0) <= surface_y + 2.2,
+		x = x,
+		z = z,
+		surface_y = surface_y,
+		stand_y = expected_y,
+	}
+end
+
+local function trim(text)
+	return tostring(text or ""):match("^%s*(.-)%s*$") or ""
+end
+
+local function agent_lookup_key(ref)
+	local text = trim(ref)
+	if text == "" then
+		return nil
+	end
+	local lowered = text:lower()
+	local number = lowered:match("^agent[_%-]?(%d+)$") or lowered:match("^(%d+)$")
+	if number then
+		return agent_key(tonumber(number))
+	end
+	for key, agent in pairs(agents) do
+		if lowered == key:lower() or lowered == tostring(agent.name or ""):lower() then
+			return key
+		end
+	end
+	return nil
+end
+
+local function agent_label(key, agent)
+	local pos = copy_pos(object_pos(agent.object) or agent.pos)
+	return key .. " / " .. tostring(agent.name) .. " (" .. tostring(agent.username) .. ") @ " .. pos.x .. "," .. pos.y .. "," .. pos.z
+end
+
+local function player_for_agent(agent)
+	if not agent then
+		return nil
+	end
+	local username = agent.username
+	if not username or username == "" then
+		local profile = profile_for(agent.id, agent.name)
+		username = profile.username
+	end
+	return minetest.get_player_by_name(username)
+end
+
+local function live_object_for_agent(agent)
+	return player_for_agent(agent) or agent.object
+end
+
+local function agent_position(agent)
+	return object_pos(live_object_for_agent(agent)) or agent.pos
+end
+
+local function set_agent_position(agent, pos)
+	local player = player_for_agent(agent)
+	if player then
+		player:set_pos(pos)
+	elseif agent.object then
+		agent.object:set_pos(pos)
+	end
+	agent.pos = copy_pos(pos)
+end
+
+local function configure_agent_player(player, agent_id)
+	local profile = profile_for(agent_id)
+	player:set_nametag_attributes({ text = profile.name, color = profile.color })
+end
+
+local function agent_id_for_username(username)
+	for id, profile in pairs(profiles) do
+		if profile.username == username then
+			return id
+		end
+	end
+	return nil
+end
+
+local function loaded_citizen_counts()
+	local counts = {}
+	for _, object in ipairs(minetest.get_objects_inside_radius({ x = 0, y = 8, z = 0 }, 256) or {}) do
+		local entity = object:get_luaentity()
+		if entity and entity.name == "oni_cadia_core:citizen" then
+			local key = agent_key(entity.agent_id)
+			counts[key] = (counts[key] or 0) + 1
+		end
+	end
+	return counts
+end
+
+local function connected_agent_players()
+	local connected = {}
+	for _, player in ipairs(minetest.get_connected_players()) do
+		local name = player:get_player_name()
+		local agent_id = agent_id_for_username(name)
+		if agent_id then
+			local key = agent_key(agent_id)
+			connected[key] = {
+				username = name,
+				name = profile_for(agent_id).name,
+				pos = copy_pos(player:get_pos()),
+			}
+		end
+	end
+	return connected
+end
+
+local function write_state()
+	local exported = {}
+	for key, agent in pairs(agents) do
+		local pos = agent_position(agent)
+		local ground = ground_info(pos)
+		exported[key] = {
+			id = agent.id,
+			name = agent.name,
+			username = agent.username,
+			online = player_for_agent(agent) ~= nil,
+			entity_type = "player",
+			pos = copy_pos(pos),
+			grounded = ground.grounded,
+			surface_y = ground.surface_y,
+			stand_y = ground.stand_y,
+			last_action = agent.last_action,
+			last_message = agent.last_message,
+		}
+	end
+	local payload = {
+		updated_at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+		bridge_dir = bridge_dir,
+		surface_mode = "natural",
+		surface_search_min_y = surface_search_min_y,
+		surface_search_max_y = surface_search_max_y,
+		processed_count = processed_count,
+		agents = exported,
+		loaded_citizen_counts = loaded_citizen_counts(),
+		connected_agent_players = connected_agent_players(),
+		chat_log = chat_log,
+		last_action = last_action,
+	}
+	minetest.safe_file_write(state_path, minetest.write_json(payload, true) .. "\n")
+end
+
+local function append_chat(source, speaker, message, extra)
+	local text = tostring(message or "")
+	if text == "" then
+		return
+	end
+	local entry = {
+		at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+		source = source,
+		speaker = tostring(speaker or source),
+		message = text,
+	}
+	if type(extra) == "table" then
+		for key, value in pairs(extra) do
+			entry[key] = value
+		end
+	end
+	table.insert(chat_log, entry)
+	while #chat_log > max_chat_log do
+		table.remove(chat_log, 1)
+	end
+	local handle = io.open(chat_path, "a")
+	if handle then
+		handle:write(minetest.write_json(entry, false) .. "\n")
+		handle:close()
+	end
+end
+
+local function civic_chat(agent, message)
+	append_chat("agent", agent.name, message, { agent_id = agent.id })
+	minetest.chat_send_all("[ONI-CADIA] " .. agent.name .. ": " .. message)
+end
+
+local function ensure_ground()
+	minetest.load_area(
+		{ x = -surface_search_radius, y = surface_search_min_y, z = -surface_search_radius },
+		{ x = surface_search_radius, y = surface_search_max_y, z = surface_search_radius }
+	)
+end
+
+minetest.register_entity("oni_cadia_core:citizen", {
+	initial_properties = {
+		physical = false,
+		pointable = true,
+		collide_with_objects = false,
+		visual = "cube",
+		visual_size = { x = 0.7, y = 1.6, z = 0.7 },
+		textures = {
+			texture("#ffffff"), texture("#ffffff"), texture("#ffffff"),
+			texture("#ffffff"), texture("#ffffff"), texture("#ffffff"),
+		},
+		static_save = false,
+	},
+	on_activate = function(self, staticdata)
+		local data = minetest.parse_json(staticdata or "") or {}
+		self.agent_id = tonumber(data.agent_id) or self.agent_id or 0
+		self.agent_name = data.agent_name or self.agent_name or agent_key(self.agent_id)
+		local profile = profile_for(self.agent_id, self.agent_name)
+		local key = agent_key(self.agent_id)
+		local existing = agents[key]
+		local existing_pos = existing and object_pos(existing.object) or nil
+		local current_pos = object_pos(self.object)
+		if existing_pos then
+			local target = persisted_agent_positions[key]
+			local keep_current = false
+			if target then
+				keep_current = distance_squared(current_pos, target) < distance_squared(existing_pos, target)
+			end
+			if keep_current then
+				existing.object:remove()
+			else
+				self.object:remove()
+				return
+			end
+		end
+		self.object:set_nametag_attributes({ text = profile.name, color = profile.color })
+		local tex = texture(profile.color)
+		self.object:set_properties({ textures = { tex, tex, tex, tex, tex, tex } })
+		local snapped = stand_pos_near(current_pos or profile.origin, key)
+		self.object:set_pos(snapped)
+		agents[key] = {
+			id = self.agent_id,
+			name = profile.name,
+			pos = copy_pos(snapped),
+			object = self.object,
+			last_action = "activate",
+		}
+	end,
+	get_staticdata = function(self)
+		return minetest.write_json({ agent_id = self.agent_id, agent_name = self.agent_name })
+	end,
+})
+
+local function ensure_agent(agent_id, agent_name)
+	local key = agent_key(agent_id)
+	local existing = agents[key]
+	if existing and (player_for_agent(existing) or object_pos(existing.object)) then
+		return existing
+	end
+	local profile = profile_for(agent_id, agent_name)
+	local player = minetest.get_player_by_name(profile.username)
+	local spawn_pos = stand_pos_near(player and player:get_pos() or persisted_agent_positions[key] or profile.origin, key)
+	minetest.load_area(spawn_pos)
+	if player then
+		configure_agent_player(player, agent_id)
+		player:set_pos(spawn_pos)
+	end
+	agents[key] = {
+		id = tonumber(agent_id) or 0,
+		name = profile.name,
+		username = profile.username,
+		pos = copy_pos(spawn_pos),
+		object = nil,
+		last_action = "spawn",
+	}
+	return agents[key]
+end
+
+local function prune_duplicate_agents()
+	minetest.load_area(
+		{ x = -surface_search_radius, y = surface_search_min_y, z = -surface_search_radius },
+		{ x = surface_search_radius, y = surface_search_max_y + 8, z = surface_search_radius }
+	)
+	for _, object in ipairs(minetest.get_objects_inside_radius({ x = 0, y = 24, z = 0 }, 256) or {}) do
+		local entity = object:get_luaentity()
+		if entity and entity.name == "oni_cadia_core:citizen" then
+			object:remove()
+		end
+	end
+	for id, profile in pairs(profiles) do
+		local player = minetest.get_player_by_name(profile.username)
+		if player then
+			local key = agent_key(id)
+			configure_agent_player(player, id)
+			local snapped = stand_pos_near(player:get_pos(), key)
+			player:set_pos(snapped)
+			agents[key] = {
+				id = id,
+				name = profile.name,
+				username = profile.username,
+				pos = copy_pos(snapped),
+				object = nil,
+				last_action = "player",
+			}
+		end
+	end
+end
+
+local directions = {
+	north = { x = 0, y = 0, z = 1 },
+	south = { x = 0, y = 0, z = -1 },
+	east = { x = 1, y = 0, z = 0 },
+	west = { x = -1, y = 0, z = 0 },
+	up = { x = 0, y = 1, z = 0 },
+	down = { x = 0, y = -1, z = 0 },
+}
+
+local function material_for(action, agent)
+	local requested = tostring(action.material or "")
+	if palette[requested] then
+		return palette[requested]
+	end
+	local profile = profile_for(agent.id, agent.name)
+	return profile.material
+end
+
+local function set_node(pos, name)
+	local target = copy_pos(pos)
+	minetest.load_area(target)
+	minetest.set_node(target, { name = name })
+end
+
+local function build_tower(base, node, height)
+	for y = 1, height do
+		set_node({ x = base.x, y = base.y + y, z = base.z }, node)
+	end
+	set_node({ x = base.x, y = base.y + height + 1, z = base.z }, "oni_cadia_core:light")
+end
+
+local function build_wall(base, node, width)
+	for x = -width, width do
+		for y = 1, 3 do
+			set_node({ x = base.x + x, y = base.y + y, z = base.z }, node)
+		end
+	end
+end
+
+local function build_road(base, direction, length)
+	local delta = directions[direction] or directions.east
+	for i = 0, length do
+		set_node({ x = base.x + delta.x * i, y = base.y, z = base.z + delta.z * i }, "oni_cadia_core:road")
+	end
+end
+
+local function build_plaza(base, node, radius)
+	for x = -radius, radius do
+		for z = -radius, radius do
+			set_node({ x = base.x + x, y = base.y, z = base.z + z }, "oni_cadia_core:road")
+		end
+	end
+	set_node({ x = base.x, y = base.y + 1, z = base.z }, node)
+	set_node({ x = base.x, y = base.y + 2, z = base.z }, "oni_cadia_core:light")
+end
+
+local function build_house(base, node)
+	for x = -2, 2 do
+		for z = -2, 2 do
+			set_node({ x = base.x + x, y = base.y, z = base.z + z }, "oni_cadia_core:wood")
+		end
+	end
+	for y = 1, 3 do
+		for x = -2, 2 do
+			set_node({ x = base.x + x, y = base.y + y, z = base.z - 2 }, node)
+			set_node({ x = base.x + x, y = base.y + y, z = base.z + 2 }, node)
+		end
+		for z = -2, 2 do
+			set_node({ x = base.x - 2, y = base.y + y, z = base.z + z }, node)
+			set_node({ x = base.x + 2, y = base.y + y, z = base.z + z }, node)
+		end
+	end
+	for x = -3, 3 do
+		for z = -3, 3 do
+			set_node({ x = base.x + x, y = base.y + 4, z = base.z + z }, "oni_cadia_core:brick")
+		end
+	end
+	set_node({ x = base.x, y = base.y + 1, z = base.z - 2 }, "air")
+	set_node({ x = base.x, y = base.y + 2, z = base.z - 2 }, "air")
+	set_node({ x = base.x, y = base.y + 2, z = base.z }, "oni_cadia_core:light")
+end
+
+local function apply_action(action)
+	local agent_id = tonumber(action.agent_id) or 1
+	local agent = ensure_agent(agent_id, action.agent_name)
+	local kind = tostring(action.action or action.type or "say")
+	agent.last_action = kind
+	last_action = action
+
+	if kind == "say" then
+		local message = tostring(action.message or "")
+		if message ~= "" then
+			agent.last_message = message
+			civic_chat(agent, message)
+		end
+	elseif kind == "move" then
+		local direction = tostring(action.direction or "east")
+		local delta = directions[direction] or directions.east
+		local steps = math.max(1, math.min(tonumber(action.steps) or 1, 16))
+		local current = agent_position(agent)
+		local target = {
+			x = round_coord(current.x) + delta.x * steps,
+			y = current.y + delta.y * steps,
+			z = round_coord(current.z) + delta.z * steps,
+		}
+		local pos = stand_pos_near(target, agent_key(agent.id))
+		set_agent_position(agent, pos)
+		civic_chat(agent, "移動しました: " .. direction .. " x" .. tostring(steps))
+	elseif kind == "build" then
+		local pos, surface = stand_pos_near(agent_position(agent), agent_key(agent.id))
+		set_agent_position(agent, pos)
+		local base = { x = pos.x, y = surface.surface_y, z = pos.z }
+		local node = material_for(action, agent)
+		local shape = tostring(action.shape or "marker")
+		if shape == "tower" then
+			build_tower(base, node, math.max(3, math.min(tonumber(action.height) or 6, 16)))
+		elseif shape == "wall" then
+			build_wall(base, node, math.max(2, math.min(tonumber(action.width) or 5, 12)))
+		elseif shape == "road" then
+			build_road(base, tostring(action.direction or "east"), math.max(4, math.min(tonumber(action.length) or 12, 32)))
+		elseif shape == "house" then
+			build_house(base, node)
+		elseif shape == "plaza" then
+			build_plaza(base, node, math.max(2, math.min(tonumber(action.radius) or 4, 10)))
+		else
+			set_node({ x = base.x, y = base.y, z = base.z }, node)
+			set_node({ x = base.x, y = base.y + 1, z = base.z }, "oni_cadia_core:light")
+		end
+		local standby = stand_pos_near({ x = base.x + 2, y = pos.y, z = base.z + 2 }, agent_key(agent.id))
+		set_agent_position(agent, standby)
+		civic_chat(agent, "建築しました: " .. shape .. " / " .. tostring(action.label or "district"))
+	end
+	processed_count = processed_count + 1
+	write_state()
+end
+
+local function process_action_file(filename)
+	local path = actions_dir .. "/" .. filename
+	local handle = io.open(path, "r")
+	if not handle then
+		return
+	end
+	local index = 0
+	for line in handle:lines() do
+		index = index + 1
+		if line and line ~= "" then
+			local action = minetest.parse_json(line)
+			if type(action) == "table" then
+				local id = tostring(action.id or (filename .. ":" .. index))
+				if not processed[id] then
+					processed[id] = true
+					apply_action(action)
+				end
+			end
+		end
+	end
+	handle:close()
+end
+
+local function process_actions()
+	local files = minetest.get_dir_list(actions_dir, false) or {}
+	table.sort(files)
+	for _, filename in ipairs(files) do
+		if filename:sub(-6) == ".jsonl" then
+			process_action_file(filename)
+		end
+	end
+end
+
+minetest.register_on_mods_loaded(function()
+	load_previous_state()
+	if not load_processed() and previous_processed_count > 0 then
+		seed_existing_actions_as_processed()
+	end
+	ensure_ground()
+	clear_legacy_static_objects_once()
+	for id, profile in pairs(profiles) do
+		ensure_agent(id, profile.name)
+	end
+	minetest.after(2, function()
+		prune_duplicate_agents()
+		write_state()
+	end)
+	write_state()
+	minetest.log("action", "[" .. modname .. "] bridge ready at " .. bridge_dir)
+end)
+
+minetest.register_on_chat_message(function(name, message)
+	append_chat("player", name, message)
+	write_state()
+	return false
+end)
+
+minetest.register_chatcommand("oni_agents", {
+	description = "List ONI-CADIA agents and their current positions.",
+	func = function(name)
+		local lines = {}
+		local keys = {}
+		for key, _ in pairs(agents) do
+			table.insert(keys, key)
+		end
+		table.sort(keys)
+		for _, key in ipairs(keys) do
+			table.insert(lines, agent_label(key, agents[key]))
+		end
+		if #lines == 0 then
+			return false, "No ONI-CADIA agents are loaded yet."
+		end
+		minetest.chat_send_player(name, "ONI-CADIA agents:\n" .. table.concat(lines, "\n"))
+		return true
+	end,
+})
+
+minetest.register_chatcommand("oni_tp", {
+	params = "<agent id|name>",
+	description = "Teleport near an ONI-CADIA agent. Examples: /oni_tp 1, /oni_tp agent_001, /oni_tp いおり",
+	func = function(name, param)
+		local player = minetest.get_player_by_name(name)
+		if not player then
+			return false, "Player is not available."
+		end
+		local key = agent_lookup_key(param)
+		if not key or not agents[key] then
+			return false, "Agent not found. Use /oni_agents to list agents."
+		end
+		local agent = agents[key]
+		local agent_pos = object_pos(agent.object) or agent.pos
+		local target = stand_pos_near({ x = agent_pos.x + 2, y = agent_pos.y, z = agent_pos.z + 1 }, nil)
+		player:set_pos(target)
+		return true, "Teleported near " .. agent_label(key, agent)
+	end,
+})
+
+minetest.register_chatcommand("oni_spawn", {
+	description = "Teleport to the natural surface near the ONI-CADIA origin.",
+	func = function(name)
+		local player = minetest.get_player_by_name(name)
+		if not player then
+			return false, "Player is not available."
+		end
+		player:set_pos(stand_pos_near({ x = 0, y = 0, z = 0 }, nil))
+		return true, "Teleported to the natural ONI-CADIA surface."
+	end,
+})
+
+local function move_player_to_surface_if_needed(player)
+	if not player then
+		return
+	end
+	local pos = player:get_pos()
+	if not pos or pos.y > surface_search_max_y + 8 or not ground_info(pos).grounded then
+		player:set_pos(stand_pos_near({ x = 0, y = 0, z = 0 }, nil))
+	end
+end
+
+local function register_joined_agent_player(player)
+	if not player then
+		return false
+	end
+	local name = player:get_player_name()
+	local agent_id = agent_id_for_username(name)
+	if not agent_id then
+		return false
+	end
+	local key = agent_key(agent_id)
+	local profile = profile_for(agent_id)
+	configure_agent_player(player, agent_id)
+	local pos = stand_pos_near(player:get_pos() or profile.origin, key)
+	player:set_pos(pos)
+	agents[key] = {
+		id = agent_id,
+		name = profile.name,
+		username = profile.username,
+		pos = copy_pos(pos),
+		object = nil,
+		last_action = "join",
+	}
+	write_state()
+	return true
+end
+
+local function snap_connected_agent_players_to_surface()
+	for id, profile in pairs(profiles) do
+		local player = minetest.get_player_by_name(profile.username)
+		if player then
+			local key = agent_key(id)
+			configure_agent_player(player, id)
+			local pos = player:get_pos()
+			if not ground_info(pos).grounded then
+				pos = stand_pos_near(pos or profile.origin, key)
+				player:set_pos(pos)
+			end
+			agents[key] = agents[key] or {
+				id = id,
+				name = profile.name,
+				username = profile.username,
+				pos = copy_pos(pos),
+				object = nil,
+				last_action = "player",
+			}
+			agents[key].id = id
+			agents[key].name = profile.name
+			agents[key].username = profile.username
+			agents[key].pos = copy_pos(player:get_pos())
+		end
+	end
+end
+
+minetest.register_on_newplayer(function(player)
+	minetest.after(0.5, function()
+		if not register_joined_agent_player(player) then
+			move_player_to_surface_if_needed(player)
+		end
+	end)
+end)
+
+minetest.register_on_joinplayer(function(player)
+	minetest.after(0.8, function()
+		if not register_joined_agent_player(player) then
+			move_player_to_surface_if_needed(player)
+		end
+	end)
+end)
+
+minetest.register_on_respawnplayer(function(player)
+	player:set_pos(stand_pos_near({ x = 0, y = 0, z = 0 }, nil))
+	return true
+end)
+
+minetest.register_globalstep(function(dtime)
+	tick = tick + dtime
+	if tick >= 1.0 then
+		tick = 0
+		snap_connected_agent_players_to_surface()
+		process_actions()
+		write_state()
+	end
+end)
