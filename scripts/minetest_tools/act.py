@@ -22,7 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
     move.add_argument("--direction", choices=["north", "south", "east", "west", "up", "down"], default="east")
     move.add_argument("--steps", type=int, default=1)
 
-    build = subparsers.add_parser("build", help="Build a small civic structure.")
+    mine = subparsers.add_parser("mine", help="Mine nearby natural terrain into the agent inventory.")
+    mine.add_argument("--material", choices=["stone", "wood", "grass", "brick", "glass", "road", "light"], default="")
+    mine.add_argument("--count", type=int, default=8)
+
+    build = subparsers.add_parser("build", help="Build a small structure using mined inventory resources.")
     build.add_argument("--shape", choices=["marker", "tower", "wall", "road", "house", "plaza"], default="marker")
     build.add_argument("--material", choices=["stone", "wood", "glass", "brick", "light", "grass", "road"], default="stone")
     build.add_argument("--label", default="")
@@ -47,6 +51,9 @@ def main() -> int:
     elif args.action == "move":
         payload["direction"] = args.direction
         payload["steps"] = args.steps
+    elif args.action == "mine":
+        payload["material"] = args.material
+        payload["count"] = args.count
     elif args.action == "build":
         payload["shape"] = args.shape
         payload["material"] = args.material

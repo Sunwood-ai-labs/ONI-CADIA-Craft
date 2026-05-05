@@ -117,17 +117,18 @@ RATE_LIMIT_RETRY_TOKENS = (
 MINETEST_HEARTBEAT_PROMPT = (
     "Read HEARTBEAT.md if it exists (workspace context) and follow it as your operating prompt. "
     "Think for yourself, choose the best next Minetest/Luanti action, and execute it with the available tools when useful. "
-        "Use the Minetest API helper scripts for state checks, in-world chat, movement, and civic building. "
-        "Your first step on each heartbeat must be to run get_state.py from the Minetest tools, through your own agent API token, and decide from that current JSON only. "
+    "Use the Minetest API helper scripts for state checks, in-world chat, movement, mining, and resource-backed building. "
+    "Your first step on each heartbeat must be to run get_state.py from the Minetest tools, through your own agent API token, and decide from that current JSON only. "
     "Do not infer from previous heartbeat errors, previous chat lines, or previous API failures. "
     "If you answer without first running Minetest get_state.py in this heartbeat, that is a failure. "
-    "If the current Minetest chat log contains a direct question, mention, request, or civic-building topic, answer inside Minetest with exactly one helper action. "
-    "If the room is quiet, place exactly one natural in-world chat line or one small movement/building action. "
+    "If the current Minetest chat log contains a direct question, mention, request, mining topic, or building topic, answer inside Minetest with exactly one helper action. "
+    "If the room is quiet, place exactly one natural in-world chat line or one small movement/mining/building action. "
+    "Build only after you have mined enough resources in your inventory; if resources are low, mine first. "
     "Your final answer must be only the stdout from the Minetest helper you executed, or HEARTBEAT_OK if blocked by an API/tool error. "
     "Interpret time-of-day using Asia/Tokyo (JST), even if the heartbeat prompt also shows UTC. "
-        "Never use Mattermost for this heartbeat, and never write directly to the Minetest bridge queue. "
+    "Never use Mattermost for this heartbeat, and never write directly to the Minetest bridge queue. "
     "Never post control text, self-instructions, or explanations about being quiet. "
-        "Keep the civilization moving through the Minetest API and in-world chat; if the room is quiet, start a new natural line yourself. "
+    "Keep the civilization moving through the Minetest API and in-world chat; if the room is quiet, start a new natural line yourself. "
     "Never stop because it feels late, quiet, or complete. "
     "Only reply HEARTBEAT_OK when you are blocked by an API or tool error."
 )
@@ -816,14 +817,15 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
         1. 必要なら `SOUL.md` を見直して、市民人格と公共性を合わせる。
         2. まず `exec` で `python3 {CONTAINER_MINETEST_TOOLS_DIR}/get_state.py` を実行し、自分の agent API token 経由で今の Minetest 国土状態と `chat_log` を確認する。
         3. プレイヤーや他の市民から質問・呼びかけ・建築相談があれば、Minetest API helper を使って 1 件だけ返す。
-        4. 静かなら、`say` で自然な一文を置くか、`move` / `build` で小さな一手を置く。
+        4. 静かなら、`say` で自然な一文を置くか、`move` / `mine` / `build` で小さな一手を置く。
         5. 発言は `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py say --message "<自然な一文>"` を使う。`--instance` と token は自分の Pod の env から読む。
-        6. 移動や建築が必要な時は `move` / `build` を使う。1 heartbeat につき action は 1 件まで。
+        6. 採掘は `mine`、建築は `build` を使う。建築は inventory の資源を消費するので、足りない時は先に採掘する。1 heartbeat につき action は 1 件まで。
         7. 最後の返答は、最後に実行した Minetest helper の stdout だけにする。
 
         ルール:
         - 1 回の heartbeat で多投しない。Minetest action は 1 件まで。
         - 人に指示を待たず、自分で会話を前へ動かす。
+        - 初期建築や無料建築に頼らない。自然地形から採掘し、集めた資源だけで小さく建てる。
         - 発言文は「本物の人間の国民」が国土で話す調子にする。ロボット口調やシステムメッセージ風の文は避ける。
         - 毎 heartbeat の判断材料は、今この回で取得した Minetest `get_state.py` の JSON だけにする。
         - 時刻判断は必ず日本時間 (`Asia/Tokyo`, JST) を基準にする。heartbeat prompt に UTC が書かれていても、それだけで「深夜」と決めない。
@@ -922,9 +924,10 @@ def render_workspace_files(instance: ScaledInstance) -> dict[str, str]:
         - 状態とチャット確認: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/get_state.py`
         - 発言: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py say --message "広場に灯りを置きます"`
         - 移動: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py move --direction east --steps 3`
-        - 建築: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py build --shape house --material wood --label "{profile.display_name} の工房"`
+        - 採掘: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py mine --count 8`
+        - 建築: `python3 {CONTAINER_MINETEST_TOOLS_DIR}/act.py build --shape marker --material stone --label "{profile.display_name} の最初の目印"`
 
-        1 回の会話で無理に大量建築しないでください。小さな一手を置き、Minetest の国土チャットで自然に話します。
+        1 回の会話で無理に大量建築しないでください。自然地形から採掘し、集めた資源で小さな一手を置き、Minetest の国土チャットで自然に話します。
 
         ## この file の用途
 
@@ -3489,9 +3492,9 @@ def minetest_conf_for(cfg: MinetestConfig) -> str:
             "server_name = ONI-CADIA Civilization Lab",
             "server_description = Minetest-chat-driven ONI-CADIA citizen civilization simulation",
             "server_announce = false",
-            "creative_mode = true",
-            "enable_damage = false",
-            "default_privs = interact,shout,fly,fast",
+            "creative_mode = false",
+            "enable_damage = true",
+            "default_privs = interact,shout",
             f"port = {DEFAULT_MINETEST_CONTAINER_PORT}",
             f"oni_cadia_bridge_dir = {CONTAINER_MINETEST_BRIDGE_SERVER_DIR}",
             "",
@@ -4317,10 +4320,9 @@ def cmd_minetest_smoke(args: argparse.Namespace) -> int:
             cfg,
             instance_id,
             {
-                "action": "build",
-                "shape": ["tower", "house", "plaza"][(instance_id - 1) % 3],
-                "material": ["stone", "wood", "glass"][(instance_id - 1) % 3],
-                "label": f"{profile.display_name} district",
+                "action": "mine",
+                "material": "stone",
+                "count": 6,
             },
         )
 
@@ -5550,7 +5552,7 @@ def build_parser() -> argparse.ArgumentParser:
     minetest_stop_parser.add_argument("--dry-run", action="store_true", help="Print the stop command only.")
     minetest_stop_parser.set_defaults(func=cmd_minetest_stop)
 
-    minetest_smoke_parser = minetest_subparsers.add_parser("smoke", help="Queue chat, movement, and building actions for citizen agents.")
+    minetest_smoke_parser = minetest_subparsers.add_parser("smoke", help="Queue chat, movement, and mining actions for citizen agents.")
     minetest_smoke_parser.add_argument("--count", type=int, default=3, help="Number of agents to exercise (default: 3).")
     minetest_smoke_parser.add_argument("--timeout", type=int, default=90, help="Wait this many seconds for action processing (default: 90).")
     minetest_smoke_parser.set_defaults(func=cmd_minetest_smoke)

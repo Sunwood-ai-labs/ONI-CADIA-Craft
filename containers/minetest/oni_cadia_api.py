@@ -151,8 +151,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
                 return
             kind = str(action.get("action") or action.get("type") or "").strip()
-            if kind not in {"say", "move", "build"}:
-                self.send_json({"error": "action must be say, move, or build"}, HTTPStatus.BAD_REQUEST)
+            if kind not in {"say", "move", "mine", "build"}:
+                self.send_json({"error": "action must be say, move, mine, or build"}, HTTPStatus.BAD_REQUEST)
                 return
             queued = append_action(agent_id, account, {"action": kind, **action})
             self.send_json({"queued": queued}, HTTPStatus.ACCEPTED)

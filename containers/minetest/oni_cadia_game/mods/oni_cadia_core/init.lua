@@ -16,6 +16,7 @@ local processed = {}
 local processed_count = 0
 local agents = {}
 local persisted_agent_positions = {}
+local persisted_agent_inventories = {}
 local chat_log = {}
 local last_action = nil
 local tick = 0
@@ -153,6 +154,66 @@ local function profile_for(agent_id, agent_name)
 	return profile
 end
 
+local function table_copy(source)
+	local copy = {}
+	if type(source) == "table" then
+		for key, value in pairs(source) do
+			copy[key] = value
+		end
+	end
+	return copy
+end
+
+local function normalize_inventory(source)
+	local inventory = {}
+	if type(source) == "table" then
+		for key, value in pairs(source) do
+			local name = tostring(key or "")
+			local count = math.max(0, math.floor(tonumber(value) or 0))
+			if name ~= "" and count > 0 then
+				inventory[name] = count
+			end
+		end
+	end
+	return inventory
+end
+
+local function ensure_inventory(agent)
+	if type(agent.inventory) ~= "table" then
+		agent.inventory = {}
+	end
+	return agent.inventory
+end
+
+local function inventory_count(agent, material)
+	local inventory = ensure_inventory(agent)
+	return math.max(0, math.floor(tonumber(inventory[material]) or 0))
+end
+
+local function add_inventory(agent, material, count)
+	local name = tostring(material or "")
+	local amount = math.max(0, math.floor(tonumber(count) or 0))
+	if name == "" or amount <= 0 then
+		return
+	end
+	local inventory = ensure_inventory(agent)
+	inventory[name] = inventory_count(agent, name) + amount
+end
+
+local function consume_inventory(agent, material, count)
+	local name = tostring(material or "")
+	local amount = math.max(0, math.floor(tonumber(count) or 0))
+	if name == "" or amount <= 0 then
+		return true
+	end
+	local available = inventory_count(agent, name)
+	if available < amount then
+		return false, available, amount
+	end
+	ensure_inventory(agent)[name] = available - amount
+	return true, available, amount
+end
+
 local function load_previous_state()
 	local handle = io.open(state_path, "r")
 	if not handle then
@@ -173,6 +234,9 @@ local function load_previous_state()
 	for key, agent in pairs(payload.agents) do
 		if type(agent) == "table" and type(agent.pos) == "table" then
 			persisted_agent_positions[key] = copy_pos(agent.pos)
+		end
+		if type(agent) == "table" and type(agent.inventory) == "table" then
+			persisted_agent_inventories[key] = normalize_inventory(agent.inventory)
 		end
 	end
 end
@@ -456,6 +520,8 @@ end
 local function configure_agent_player(player, agent_id)
 	local profile = profile_for(agent_id)
 	player:set_nametag_attributes({ text = profile.name, color = profile.color })
+	player:set_hp(math.max(1, player:get_hp()))
+	minetest.set_player_privs(player:get_player_name(), { interact = true, shout = true })
 end
 
 local function agent_id_for_username(username)
@@ -511,6 +577,8 @@ local function write_state()
 			grounded = ground.grounded,
 			surface_y = ground.surface_y,
 			stand_y = ground.stand_y,
+			inventory = normalize_inventory(ensure_inventory(agent)),
+			hp = player_for_agent(agent) and player_for_agent(agent):get_hp() or nil,
 			last_action = agent.last_action,
 			last_message = agent.last_message,
 		}
@@ -615,6 +683,7 @@ minetest.register_entity("oni_cadia_core:citizen", {
 			name = profile.name,
 			pos = copy_pos(snapped),
 			object = self.object,
+			inventory = table_copy(persisted_agent_inventories[key]),
 			last_action = "activate",
 		}
 	end,
@@ -643,6 +712,7 @@ local function ensure_agent(agent_id, agent_name)
 		username = profile.username,
 		pos = copy_pos(spawn_pos),
 		object = nil,
+		inventory = table_copy(persisted_agent_inventories[key]),
 		last_action = "spawn",
 	}
 	return agents[key]
@@ -672,6 +742,7 @@ local function prune_duplicate_agents()
 				username = profile.username,
 				pos = copy_pos(snapped),
 				object = nil,
+				inventory = agents[key] and ensure_inventory(agents[key]) or table_copy(persisted_agent_inventories[key]),
 				last_action = "player",
 			}
 		end
@@ -700,6 +771,99 @@ local function set_node(pos, name)
 	local target = copy_pos(pos)
 	minetest.load_area(target)
 	minetest.set_node(target, { name = name })
+end
+
+local function material_from_node_name(node_name)
+	local name = tostring(node_name or ""):lower()
+	if name == "" or name == "air" or name == "ignore" then
+		return nil
+	end
+	if name:find("wood") or name:find("tree") then
+		return "wood"
+	end
+	if name:find("glass") then
+		return "glass"
+	end
+	if name:find("brick") then
+		return "brick"
+	end
+	if name:find("grass") or name:find("dirt") or name:find("leaves") then
+		return "grass"
+	end
+	if name:find("road") then
+		return "road"
+	end
+	if name:find("light") then
+		return "light"
+	end
+	return "stone"
+end
+
+local function mine_one_node(agent, pos, requested_material)
+	local target = copy_pos(pos)
+	local node, def = node_and_def(target)
+	if not node or node.name == "air" or node.name == "ignore" or def.walkable == false then
+		return nil
+	end
+	local material = material_from_node_name(node.name)
+	if not material then
+		return nil
+	end
+	local requested = tostring(requested_material or "")
+	if requested ~= "" and material ~= requested then
+		return nil
+	end
+	set_node(target, "air")
+	add_inventory(agent, material, 1)
+	return material
+end
+
+local function mine_near_agent(agent, requested_material, count)
+	local current = agent_position(agent)
+	local ground = ground_info(current)
+	local base = {
+		x = round_coord(current.x),
+		y = ground.surface_y or round_coord((current.y or 1) - 1),
+		z = round_coord(current.z),
+	}
+	local wanted = math.max(1, math.min(tonumber(count) or 8, 24))
+	local mined = {}
+	local total = 0
+	minetest.load_area(
+		{ x = base.x - 4, y = base.y - 4, z = base.z - 4 },
+		{ x = base.x + 4, y = base.y + 1, z = base.z + 4 }
+	)
+	for depth = 0, 3 do
+		for radius = 1, 4 do
+			for dx = -radius, radius do
+				for dz = -radius, radius do
+					if math.abs(dx) == radius or math.abs(dz) == radius then
+						local material = mine_one_node(agent, { x = base.x + dx, y = base.y - depth, z = base.z + dz }, requested_material)
+						if material then
+							mined[material] = (mined[material] or 0) + 1
+							total = total + 1
+							if total >= wanted then
+								return mined, total
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	return mined, total
+end
+
+local function format_inventory_delta(counts)
+	local parts = {}
+	for material, count in pairs(counts or {}) do
+		table.insert(parts, tostring(material) .. " x" .. tostring(count))
+	end
+	table.sort(parts)
+	if #parts == 0 then
+		return "none"
+	end
+	return table.concat(parts, ", ")
 end
 
 local function build_tower(base, node, height)
@@ -760,6 +924,37 @@ local function build_house(base, node)
 	set_node({ x = base.x, y = base.y + 2, z = base.z }, "oni_cadia_core:light")
 end
 
+local function build_cost_for(shape, action)
+	if shape == "tower" then
+		return math.max(3, math.min(tonumber(action.height) or 6, 16)) + 1
+	end
+	if shape == "wall" then
+		return (math.max(2, math.min(tonumber(action.width) or 5, 12)) * 2 + 1) * 3
+	end
+	if shape == "road" then
+		return math.max(4, math.min(tonumber(action.length) or 12, 32)) + 1
+	end
+	if shape == "house" then
+		return 24
+	end
+	if shape == "plaza" then
+		local radius = math.max(2, math.min(tonumber(action.radius) or 4, 10))
+		return math.min((radius * 2 + 1) * (radius * 2 + 1) + 2, 48)
+	end
+	return 2
+end
+
+local function build_resource_for(shape, action)
+	local requested = tostring(action.material or "stone")
+	if requested == "" or not palette[requested] then
+		requested = "stone"
+	end
+	if shape == "road" or shape == "plaza" then
+		return "stone"
+	end
+	return requested
+end
+
 local function apply_action(action)
 	local agent_id = tonumber(action.agent_id) or 1
 	local agent = ensure_agent(agent_id, action.agent_name)
@@ -786,29 +981,47 @@ local function apply_action(action)
 		local pos = stand_pos_near(target, agent_key(agent.id))
 		set_agent_position(agent, pos)
 		civic_chat(agent, "移動しました: " .. direction .. " x" .. tostring(steps))
+	elseif kind == "mine" then
+		local requested = tostring(action.material or "")
+		local mined, total = mine_near_agent(agent, requested, action.count)
+		if total > 0 then
+			agent.last_action = "mine"
+			civic_chat(agent, "採掘しました: " .. format_inventory_delta(mined))
+		else
+			agent.last_action = "mine_empty"
+			civic_chat(agent, "近くで採掘できる資源が見つかりませんでした。少し移動して探します。")
+		end
 	elseif kind == "build" then
 		local pos, surface = stand_pos_near(agent_position(agent), agent_key(agent.id))
 		set_agent_position(agent, pos)
 		local base = { x = pos.x, y = surface.surface_y, z = pos.z }
 		local node = material_for(action, agent)
 		local shape = tostring(action.shape or "marker")
-		if shape == "tower" then
-			build_tower(base, node, math.max(3, math.min(tonumber(action.height) or 6, 16)))
-		elseif shape == "wall" then
-			build_wall(base, node, math.max(2, math.min(tonumber(action.width) or 5, 12)))
-		elseif shape == "road" then
-			build_road(base, tostring(action.direction or "east"), math.max(4, math.min(tonumber(action.length) or 12, 32)))
-		elseif shape == "house" then
-			build_house(base, node)
-		elseif shape == "plaza" then
-			build_plaza(base, node, math.max(2, math.min(tonumber(action.radius) or 4, 10)))
+		local resource = build_resource_for(shape, action)
+		local cost = build_cost_for(shape, action)
+		local ok, available = consume_inventory(agent, resource, cost)
+		if not ok then
+			agent.last_action = "build_blocked"
+			civic_chat(agent, "資源が足りません: " .. resource .. " " .. tostring(available) .. "/" .. tostring(cost) .. "。先に採掘します。")
 		else
-			set_node({ x = base.x, y = base.y, z = base.z }, node)
-			set_node({ x = base.x, y = base.y + 1, z = base.z }, "oni_cadia_core:light")
+			if shape == "tower" then
+				build_tower(base, node, math.max(3, math.min(tonumber(action.height) or 6, 16)))
+			elseif shape == "wall" then
+				build_wall(base, node, math.max(2, math.min(tonumber(action.width) or 5, 12)))
+			elseif shape == "road" then
+				build_road(base, tostring(action.direction or "east"), math.max(4, math.min(tonumber(action.length) or 12, 32)))
+			elseif shape == "house" then
+				build_house(base, node)
+			elseif shape == "plaza" then
+				build_plaza(base, node, math.max(2, math.min(tonumber(action.radius) or 4, 10)))
+			else
+				set_node({ x = base.x, y = base.y, z = base.z }, node)
+				set_node({ x = base.x, y = base.y + 1, z = base.z }, "oni_cadia_core:light")
+			end
+			local standby = stand_pos_near({ x = base.x + 2, y = pos.y, z = base.z + 2 }, agent_key(agent.id))
+			set_agent_position(agent, standby)
+			civic_chat(agent, "建築しました: " .. shape .. " / " .. tostring(action.label or "district") .. " / 消費 " .. resource .. " x" .. tostring(cost))
 		end
-		local standby = stand_pos_near({ x = base.x + 2, y = pos.y, z = base.z + 2 }, agent_key(agent.id))
-		set_agent_position(agent, standby)
-		civic_chat(agent, "建築しました: " .. shape .. " / " .. tostring(action.label or "district"))
 	end
 	processed_count = processed_count + 1
 	write_state()
@@ -953,6 +1166,7 @@ local function register_joined_agent_player(player)
 		username = profile.username,
 		pos = copy_pos(pos),
 		object = nil,
+		inventory = agents[key] and ensure_inventory(agents[key]) or table_copy(persisted_agent_inventories[key]),
 		last_action = "join",
 	}
 	write_state()
@@ -976,6 +1190,7 @@ local function snap_connected_agent_players_to_surface()
 				username = profile.username,
 				pos = copy_pos(pos),
 				object = nil,
+				inventory = table_copy(persisted_agent_inventories[key]),
 				last_action = "player",
 			}
 			agents[key].id = id
