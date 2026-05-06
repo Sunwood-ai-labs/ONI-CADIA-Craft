@@ -1930,16 +1930,20 @@ def set_mattermost_autonomy_env(env_file: Path, enabled: bool, interval_minutes:
     write_or_update_env_value(env_file, "OPENCLAW_MATTERMOST_AUTONOMY_MODEL", autonomy_model)
 
 
-def seed_minetest_autonomy_interval_overrides(env_file: Path, base_interval_minutes: int) -> dict[int, str]:
+def seed_minetest_autonomy_interval_overrides(env_file: Path, base_interval_minutes: int, *, force: bool = False) -> dict[int, str]:
     env_values = parse_env_file(env_file)
     seeded: dict[int, str] = {}
     for instance_id in sorted(MATTERMOST_AUTONOMY_INTERVAL_DEFAULTS):
         key = instance_override_env_key("OPENCLAW_MINETEST_AUTONOMY_INTERVAL", instance_id)
         current = env_values.get(key, "").strip()
-        if current:
+        if current and not force:
             seeded[instance_id] = normalize_minute_interval(current)
             continue
-        interval = default_mattermost_autonomy_interval_for_instance(base_interval_minutes, instance_id)
+        interval = (
+            f"{max(1, base_interval_minutes)}m"
+            if force and current
+            else default_mattermost_autonomy_interval_for_instance(base_interval_minutes, instance_id)
+        )
         write_or_update_env_value(env_file, key, interval)
         seeded[instance_id] = interval
     return seeded
@@ -1963,7 +1967,7 @@ def set_minetest_autonomy_env(env_file: Path, enabled: bool, interval_minutes: i
     if resolved_interval_minutes is None:
         resolved_interval = normalize_minute_interval(env_values.get("OPENCLAW_MINETEST_AUTONOMY_INTERVAL", "6m"))
         resolved_interval_minutes = int(resolved_interval[:-1])
-    seed_minetest_autonomy_interval_overrides(env_file, resolved_interval_minutes)
+    seed_minetest_autonomy_interval_overrides(env_file, resolved_interval_minutes, force=interval_minutes is not None)
     autonomy_model = env_values.get("OPENCLAW_MINETEST_AUTONOMY_MODEL", "").strip()
     if not autonomy_model:
         autonomy_model = resolved_model_ref(env_values) or DEFAULT_MATTERMOST_AUTONOMY_MODEL

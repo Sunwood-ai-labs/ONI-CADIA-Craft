@@ -26,7 +26,7 @@
       {
         "id": "main",
         "heartbeat": {
-          "every": "15m",
+          "every": "5m",
           "lightContext": true,
           "isolatedSession": true,
           "target": "none",
