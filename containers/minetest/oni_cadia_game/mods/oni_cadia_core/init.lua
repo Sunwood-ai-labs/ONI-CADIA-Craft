@@ -54,6 +54,25 @@ local function texture(color)
 	return "[fill:16x16:" .. color
 end
 
+minetest.register_item(":", {
+	type = "none",
+	wield_image = "wieldhand.png",
+	wield_scale = { x = 1, y = 1, z = 2.5 },
+	range = 8,
+	tool_capabilities = {
+		full_punch_interval = 0.6,
+		max_drop_level = 0,
+		groupcaps = {
+			choppy = { times = { [1] = 1.2, [2] = 0.8, [3] = 0.4 }, uses = 0, maxlevel = 3 },
+			cracky = { times = { [1] = 1.8, [2] = 1.2, [3] = 0.6 }, uses = 0, maxlevel = 3 },
+			crumbly = { times = { [1] = 1.0, [2] = 0.6, [3] = 0.3 }, uses = 0, maxlevel = 3 },
+			snappy = { times = { [1] = 0.8, [2] = 0.4, [3] = 0.2 }, uses = 0, maxlevel = 3 },
+			oddly_breakable_by_hand = { times = { [1] = 0.7, [2] = 0.4, [3] = 0.2 }, uses = 0, maxlevel = 3 },
+		},
+		damage_groups = { fleshy = 1 },
+	},
+})
+
 minetest.register_node("oni_cadia_core:grass", {
 	description = "ONI-CADIA Grass",
 	tiles = { texture("#4d9f57") },
