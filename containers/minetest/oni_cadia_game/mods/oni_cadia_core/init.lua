@@ -57,19 +57,19 @@ end
 minetest.register_node("oni_cadia_core:grass", {
 	description = "ONI-CADIA Grass",
 	tiles = { texture("#4d9f57") },
-	groups = { crumbly = 3 },
+	groups = { crumbly = 3, oddly_breakable_by_hand = 2 },
 })
 
 minetest.register_node("oni_cadia_core:dirt", {
 	description = "ONI-CADIA Forest Dirt",
 	tiles = { texture("#6b4f2a") },
-	groups = { crumbly = 3, soil = 1 },
+	groups = { crumbly = 3, soil = 1, oddly_breakable_by_hand = 2 },
 })
 
 minetest.register_node("oni_cadia_core:dirt_with_grass", {
 	description = "ONI-CADIA Forest Floor",
 	tiles = { texture("#4d9f57"), texture("#6b4f2a"), texture("#5d7f39") },
-	groups = { crumbly = 3, soil = 1 },
+	groups = { crumbly = 3, soil = 1, oddly_breakable_by_hand = 2 },
 })
 
 minetest.register_node("oni_cadia_core:forest_grass", {
@@ -81,25 +81,25 @@ minetest.register_node("oni_cadia_core:forest_grass", {
 	paramtype = "light",
 	walkable = false,
 	buildable_to = true,
-	groups = { snappy = 3, flora = 1, grass = 1 },
+	groups = { snappy = 3, flora = 1, grass = 1, oddly_breakable_by_hand = 3 },
 })
 
 minetest.register_node("oni_cadia_core:stone", {
 	description = "ONI-CADIA Stone",
 	tiles = { texture("#7d8794") },
-	groups = { cracky = 2 },
+	groups = { cracky = 2, oddly_breakable_by_hand = 3 },
 })
 
 minetest.register_node("oni_cadia_core:wood", {
 	description = "ONI-CADIA Wood",
 	tiles = { texture("#a66a3f") },
-	groups = { choppy = 2 },
+	groups = { choppy = 2, oddly_breakable_by_hand = 2 },
 })
 
 minetest.register_node("oni_cadia_core:tree", {
 	description = "ONI-CADIA Forest Tree",
 	tiles = { texture("#7a4a28") },
-	groups = { tree = 1, choppy = 2 },
+	groups = { tree = 1, choppy = 2, oddly_breakable_by_hand = 2 },
 })
 
 minetest.register_node("oni_cadia_core:leaves", {
@@ -108,7 +108,7 @@ minetest.register_node("oni_cadia_core:leaves", {
 	tiles = { texture("#2f7d3f") },
 	paramtype = "light",
 	walkable = false,
-	groups = { snappy = 3, leaves = 1, flora = 1 },
+	groups = { snappy = 3, leaves = 1, flora = 1, oddly_breakable_by_hand = 3 },
 })
 
 minetest.register_node("oni_cadia_core:water_source", {
@@ -136,26 +136,26 @@ minetest.register_node("oni_cadia_core:glass", {
 	paramtype = "light",
 	sunlight_propagates = true,
 	use_texture_alpha = "blend",
-	groups = { cracky = 3 },
+	groups = { cracky = 3, oddly_breakable_by_hand = 3 },
 })
 
 minetest.register_node("oni_cadia_core:brick", {
 	description = "ONI-CADIA Brick",
 	tiles = { texture("#bd5c5c") },
-	groups = { cracky = 2 },
+	groups = { cracky = 2, oddly_breakable_by_hand = 3 },
 })
 
 minetest.register_node("oni_cadia_core:road", {
 	description = "ONI-CADIA Road",
 	tiles = { texture("#2f3542") },
-	groups = { cracky = 2 },
+	groups = { cracky = 2, oddly_breakable_by_hand = 3 },
 })
 
 minetest.register_node("oni_cadia_core:light", {
 	description = "ONI-CADIA Civic Light",
 	tiles = { texture("#ffe66d") },
 	light_source = 12,
-	groups = { cracky = 2 },
+	groups = { cracky = 2, oddly_breakable_by_hand = 3 },
 })
 
 minetest.register_alias("mapgen_stone", "oni_cadia_core:stone")
@@ -598,6 +598,17 @@ local function configure_agent_player(player, agent_id)
 	player:set_nametag_attributes({ text = profile.name, color = profile.color })
 	player:set_hp(math.max(1, player:get_hp()))
 	minetest.set_player_privs(player:get_player_name(), { interact = true, shout = true })
+end
+
+local function ensure_player_privs(player)
+	if not player then
+		return
+	end
+	local name = player:get_player_name()
+	local privs = minetest.get_player_privs(name)
+	privs.interact = true
+	privs.shout = true
+	minetest.set_player_privs(name, privs)
 end
 
 local function agent_id_for_username(username)
@@ -1411,6 +1422,7 @@ end
 
 minetest.register_on_newplayer(function(player)
 	minetest.after(0.5, function()
+		ensure_player_privs(player)
 		if not register_joined_agent_player(player) then
 			move_player_to_surface_if_needed(player)
 		end
@@ -1419,6 +1431,7 @@ end)
 
 minetest.register_on_joinplayer(function(player)
 	minetest.after(0.8, function()
+		ensure_player_privs(player)
 		if not register_joined_agent_player(player) then
 			move_player_to_surface_if_needed(player)
 		end
