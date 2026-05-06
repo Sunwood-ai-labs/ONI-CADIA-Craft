@@ -171,7 +171,7 @@ minetest.register_node("oni_cadia_core:road", {
 })
 
 minetest.register_node("oni_cadia_core:light", {
-	description = "ONI-CADIA Civic Light",
+	description = "ONI-CADIA Wood Lamp",
 	tiles = { texture("#ffe66d") },
 	light_source = 12,
 	groups = { cracky = 2, oddly_breakable_by_hand = 3 },
@@ -1007,7 +1007,7 @@ local function material_from_node_name(node_name)
 		return "road"
 	end
 	if name:find("light") then
-		return "light"
+		return "wood"
 	end
 	return "stone"
 end
@@ -1180,10 +1180,24 @@ local function build_resource_for(shape, action)
 	if requested == "" or not palette[requested] then
 		requested = "stone"
 	end
+	if requested == "light" then
+		return "wood"
+	end
 	if shape == "road" or shape == "plaza" then
 		return "stone"
 	end
 	return requested
+end
+
+local function build_note_for(shape, action, resource)
+	local requested = tostring(action.material or "")
+	if requested == "light" then
+		return " / 照明は wood で作成"
+	end
+	if shape == "tower" or shape == "house" or shape == "plaza" or shape == "marker" or shape == "" then
+		return " / 照明込み"
+	end
+	return ""
 end
 
 local function apply_action(action)
@@ -1257,7 +1271,7 @@ local function apply_action(action)
 			end
 			local standby = stand_pos_near({ x = base.x + 2, y = pos.y, z = base.z + 2 }, agent_key(agent.id))
 			set_agent_position(agent, standby)
-			civic_chat(agent, "建築しました: " .. shape .. " / " .. tostring(action.label or "district") .. " / 消費 " .. resource .. " x" .. tostring(cost))
+			civic_chat(agent, "建築しました: " .. shape .. " / " .. tostring(action.label or "district") .. " / 消費 " .. resource .. " x" .. tostring(cost) .. build_note_for(shape, action, resource))
 		end
 	end
 	processed_count = processed_count + 1
