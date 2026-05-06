@@ -2,6 +2,7 @@ FROM docker.io/alpine:3.22
 
 RUN apk add --no-cache \
     font-dejavu \
+    git \
     luanti \
     luanti-server \
     mesa-dri-gallium \
@@ -9,6 +10,9 @@ RUN apk add --no-cache \
     python3 \
     xvfb-run
 
+RUN git clone --depth 1 https://github.com/minetest/minetest_game.git /usr/share/luanti/games/minetest_game
+
+COPY oni_cadia_game/mods/oni_cadia_core /usr/share/luanti/games/minetest_game/mods/oni_cadia_core
 COPY oni_cadia_game /usr/share/luanti/games/oni_cadia_game
 COPY oni_cadia_api.py /usr/local/bin/oni_cadia_api.py
 COPY oni_cadia_player_client.py /usr/local/bin/oni_cadia_player_client.py
@@ -16,4 +20,4 @@ COPY oni_cadia_player_client.py /usr/local/bin/oni_cadia_player_client.py
 EXPOSE 30000/udp
 EXPOSE 30800/tcp
 
-CMD ["minetestserver", "--config", "/var/lib/minetest/.minetest/minetest.conf", "--world", "/var/lib/minetest/.minetest/worlds/oni-cadia", "--gameid", "oni_cadia_game"]
+CMD ["minetestserver", "--config", "/var/lib/minetest/.minetest/minetest.conf", "--world", "/var/lib/minetest/.minetest/worlds/oni-cadia", "--gameid", "minetest_game"]

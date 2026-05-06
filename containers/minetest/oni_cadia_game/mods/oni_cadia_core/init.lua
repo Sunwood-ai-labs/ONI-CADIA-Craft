@@ -29,24 +29,24 @@ local surface_search_radius = 96
 local forest_stage_name = "easy_forest_survival"
 
 local profiles = {
-	[1] = { username = "iori", name = "いおり", color = "#8fd3ff", origin = { x = -8, y = 3, z = 0 }, material = "oni_cadia_core:stone" },
-	[2] = { username = "tsumugi", name = "つむぎ", color = "#ffd479", origin = { x = 0, y = 3, z = 8 }, material = "oni_cadia_core:wood" },
+	[1] = { username = "iori", name = "いおり", color = "#8fd3ff", origin = { x = -8, y = 3, z = 0 }, material = "default:stone" },
+	[2] = { username = "tsumugi", name = "つむぎ", color = "#ffd479", origin = { x = 0, y = 3, z = 8 }, material = "default:wood" },
 	[3] = { username = "saku", name = "さく", color = "#b7ff9a", origin = { x = 8, y = 3, z = 0 }, material = "oni_cadia_core:glass" },
 	[4] = { username = "ruri", name = "るり", color = "#b5a4ff", origin = { x = 0, y = 3, z = -8 }, material = "oni_cadia_core:brick" },
-	[5] = { username = "hibiki", name = "ひびき", color = "#ff9a9a", origin = { x = -12, y = 3, z = 8 }, material = "oni_cadia_core:light" },
-	[6] = { username = "kanae", name = "かなえ", color = "#9affdf", origin = { x = 12, y = 3, z = -8 }, material = "oni_cadia_core:grass" },
+	[5] = { username = "hibiki", name = "ひびき", color = "#ff9a9a", origin = { x = -12, y = 3, z = 8 }, material = "default:torch" },
+	[6] = { username = "kanae", name = "かなえ", color = "#9affdf", origin = { x = 12, y = 3, z = -8 }, material = "default:dirt_with_grass" },
 	[7] = { username = "kimi", name = "きみ", color = "#f4a7ff", origin = { x = -16, y = 3, z = -8 }, material = "oni_cadia_core:brick" },
-	[8] = { username = "qwen", name = "くえん", color = "#a7c7ff", origin = { x = 16, y = 3, z = 8 }, material = "oni_cadia_core:stone" },
-	[9] = { username = "minimax", name = "みにま", color = "#fff4a7", origin = { x = 0, y = 3, z = 16 }, material = "oni_cadia_core:light" },
+	[8] = { username = "qwen", name = "くえん", color = "#a7c7ff", origin = { x = 16, y = 3, z = 8 }, material = "default:stone" },
+	[9] = { username = "minimax", name = "みにま", color = "#fff4a7", origin = { x = 0, y = 3, z = 16 }, material = "default:torch" },
 }
 
 local palette = {
-	stone = "oni_cadia_core:stone",
-	wood = "oni_cadia_core:wood",
-	glass = "oni_cadia_core:glass",
-	brick = "oni_cadia_core:brick",
-	light = "oni_cadia_core:light",
-	grass = "oni_cadia_core:grass",
+	stone = "default:stone",
+	wood = "default:wood",
+	glass = "default:glass",
+	brick = "default:brick",
+	light = "default:torch",
+	grass = "default:dirt_with_grass",
 	road = "oni_cadia_core:road",
 }
 
@@ -177,14 +177,6 @@ minetest.register_node("oni_cadia_core:light", {
 	groups = { cracky = 2, oddly_breakable_by_hand = 3 },
 })
 
-minetest.register_alias("mapgen_stone", "oni_cadia_core:stone")
-minetest.register_alias("mapgen_dirt", "oni_cadia_core:dirt")
-minetest.register_alias("mapgen_dirt_with_grass", "oni_cadia_core:dirt_with_grass")
-minetest.register_alias("mapgen_tree", "oni_cadia_core:tree")
-minetest.register_alias("mapgen_leaves", "oni_cadia_core:leaves")
-minetest.register_alias("mapgen_water_source", "oni_cadia_core:water_source")
-minetest.register_alias("mapgen_river_water_source", "oni_cadia_core:water_source")
-
 local function round_coord(value)
 	return math.floor((tonumber(value) or 0) + 0.5)
 end
@@ -227,7 +219,7 @@ local function profile_for(agent_id, agent_name)
 		name = agent_name or ("agent_" .. tostring(id)),
 		color = "#ffffff",
 		origin = { x = (id - 1) * 4, y = 3, z = 12 },
-		material = "oni_cadia_core:stone",
+		material = "default:stone",
 	}
 	if agent_name and agent_name ~= "" then
 		profile.name = agent_name
@@ -457,9 +449,13 @@ local function is_surface_ground(pos)
 		return false
 	end
 	if node.name == "oni_cadia_core:tree"
+		or node.name == "default:tree"
 		or node.name == "oni_cadia_core:leaves"
+		or node.name == "default:leaves"
 		or node.name == "oni_cadia_core:forest_grass"
-		or node.name == "oni_cadia_core:water_source" then
+		or node.name == "oni_cadia_core:water_source"
+		or node.name == "default:water_source"
+		or node.name == "default:river_water_source" then
 		return false
 	end
 	return def.walkable ~= false
@@ -891,9 +887,13 @@ local function generation_surface_y_at(x, z, min_y, max_y)
 		if name ~= "air"
 			and name ~= "ignore"
 			and name ~= "oni_cadia_core:water_source"
+			and name ~= "default:water_source"
+			and name ~= "default:river_water_source"
 			and name ~= "oni_cadia_core:leaves"
+			and name ~= "default:leaves"
 			and name ~= "oni_cadia_core:forest_grass"
-			and name ~= "oni_cadia_core:tree" then
+			and name ~= "oni_cadia_core:tree"
+			and name ~= "default:tree" then
 			return y, name
 		end
 	end
@@ -911,7 +911,7 @@ end
 
 local function place_forest_tree(x, y, z, height)
 	for dy = 1, height do
-		minetest.set_node({ x = x, y = y + dy, z = z }, { name = "oni_cadia_core:tree" })
+		minetest.set_node({ x = x, y = y + dy, z = z }, { name = "default:tree" })
 	end
 	local crown_y = y + height
 	for dx = -2, 2 do
@@ -920,7 +920,7 @@ local function place_forest_tree(x, y, z, height)
 				if math.abs(dx) + math.abs(dz) + math.max(0, dy) <= 4 then
 					local leaf_pos = { x = x + dx, y = crown_y + dy, z = z + dz }
 					if generation_replaceable(leaf_pos) then
-						minetest.set_node(leaf_pos, { name = "oni_cadia_core:leaves" })
+						minetest.set_node(leaf_pos, { name = "default:leaves" })
 					end
 				end
 			end
@@ -938,9 +938,9 @@ local function ensure_starter_forest()
 	for _, offset in ipairs(tree_offsets) do
 		local y = surface_y_at(offset.x, offset.z)
 		if y then
-			set_node({ x = offset.x, y = y, z = offset.z }, "oni_cadia_core:dirt_with_grass")
+			set_node({ x = offset.x, y = y, z = offset.z }, "default:dirt_with_grass")
 			for depth = 1, 3 do
-				set_node({ x = offset.x, y = y - depth, z = offset.z }, "oni_cadia_core:dirt")
+				set_node({ x = offset.x, y = y - depth, z = offset.z }, "default:dirt")
 			end
 			place_forest_tree(offset.x, y, offset.z, 5 + (math.abs(offset.x + offset.z) % 2))
 		end
@@ -964,13 +964,13 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
 	for x = minp.x, maxp.x do
 		for z = minp.z, maxp.z do
 			local y, top_name = generation_surface_y_at(x, z, math.max(minp.y, surface_search_min_y), math.min(maxp.y, surface_search_max_y))
-			if y and top_name ~= "oni_cadia_core:water_source" then
-				minetest.set_node({ x = x, y = y, z = z }, { name = "oni_cadia_core:dirt_with_grass" })
+			if y and top_name ~= "oni_cadia_core:water_source" and top_name ~= "default:water_source" then
+				minetest.set_node({ x = x, y = y, z = z }, { name = "default:dirt_with_grass" })
 				for depth = 1, 3 do
 					local below = { x = x, y = y - depth, z = z }
 					local below_name = minetest.get_node(below).name
-					if below_name == "oni_cadia_core:stone" then
-						minetest.set_node(below, { name = "oni_cadia_core:dirt" })
+					if below_name == "oni_cadia_core:stone" or below_name == "default:stone" then
+						minetest.set_node(below, { name = "default:dirt" })
 					end
 				end
 				local open1 = generation_replaceable({ x = x, y = y + 1, z = z })
@@ -1101,7 +1101,7 @@ local function build_tower(base, node, height)
 	for y = 1, height do
 		set_node({ x = base.x, y = base.y + y, z = base.z }, node)
 	end
-	set_node({ x = base.x, y = base.y + height + 1, z = base.z }, "oni_cadia_core:light")
+	set_node({ x = base.x, y = base.y + height + 1, z = base.z }, "default:torch")
 end
 
 local function build_wall(base, node, width)
@@ -1126,13 +1126,13 @@ local function build_plaza(base, node, radius)
 		end
 	end
 	set_node({ x = base.x, y = base.y + 1, z = base.z }, node)
-	set_node({ x = base.x, y = base.y + 2, z = base.z }, "oni_cadia_core:light")
+	set_node({ x = base.x, y = base.y + 2, z = base.z }, "default:torch")
 end
 
 local function build_house(base, node)
 	for x = -2, 2 do
 		for z = -2, 2 do
-			set_node({ x = base.x + x, y = base.y, z = base.z + z }, "oni_cadia_core:wood")
+			set_node({ x = base.x + x, y = base.y, z = base.z + z }, "default:wood")
 		end
 	end
 	for y = 1, 3 do
@@ -1152,7 +1152,7 @@ local function build_house(base, node)
 	end
 	set_node({ x = base.x, y = base.y + 1, z = base.z - 2 }, "air")
 	set_node({ x = base.x, y = base.y + 2, z = base.z - 2 }, "air")
-	set_node({ x = base.x, y = base.y + 2, z = base.z }, "oni_cadia_core:light")
+	set_node({ x = base.x, y = base.y + 2, z = base.z }, "default:torch")
 end
 
 local function build_cost_for(shape, action)
@@ -1267,7 +1267,7 @@ local function apply_action(action)
 				build_plaza(base, node, math.max(2, math.min(tonumber(action.radius) or 4, 10)))
 			else
 				set_node({ x = base.x, y = base.y, z = base.z }, node)
-				set_node({ x = base.x, y = base.y + 1, z = base.z }, "oni_cadia_core:light")
+				set_node({ x = base.x, y = base.y + 1, z = base.z }, "default:torch")
 			end
 			local standby = stand_pos_near({ x = base.x + 2, y = pos.y, z = base.z + 2 }, agent_key(agent.id))
 			set_agent_position(agent, standby)
