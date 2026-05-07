@@ -29,15 +29,15 @@ local surface_search_radius = 96
 local forest_stage_name = "easy_forest_survival"
 
 local profiles = {
-	[1] = { username = "iori", name = "いおり", color = "#8fd3ff", origin = { x = -8, y = 3, z = 0 }, material = "default:stone" },
-	[2] = { username = "tsumugi", name = "つむぎ", color = "#ffd479", origin = { x = 0, y = 3, z = 8 }, material = "default:wood" },
-	[3] = { username = "saku", name = "さく", color = "#b7ff9a", origin = { x = 8, y = 3, z = 0 }, material = "oni_cadia_core:glass" },
-	[4] = { username = "ruri", name = "るり", color = "#b5a4ff", origin = { x = 0, y = 3, z = -8 }, material = "oni_cadia_core:brick" },
-	[5] = { username = "hibiki", name = "ひびき", color = "#ff9a9a", origin = { x = -12, y = 3, z = 8 }, material = "default:torch" },
-	[6] = { username = "kanae", name = "かなえ", color = "#9affdf", origin = { x = 12, y = 3, z = -8 }, material = "default:dirt_with_grass" },
-	[7] = { username = "kimi", name = "きみ", color = "#f4a7ff", origin = { x = -16, y = 3, z = -8 }, material = "oni_cadia_core:brick" },
-	[8] = { username = "qwen", name = "くえん", color = "#a7c7ff", origin = { x = 16, y = 3, z = 8 }, material = "default:stone" },
-	[9] = { username = "minimax", name = "みにま", color = "#fff4a7", origin = { x = 0, y = 3, z = 16 }, material = "default:torch" },
+	[1] = { username = "iori", name = "いおり", color = "#8fd3ff", skin = "#1f8ed6", origin = { x = -8, y = 3, z = 0 }, material = "default:stone" },
+	[2] = { username = "tsumugi", name = "つむぎ", color = "#ffd479", skin = "#d89b18", origin = { x = 0, y = 3, z = 8 }, material = "default:wood" },
+	[3] = { username = "saku", name = "さく", color = "#b7ff9a", skin = "#4fba45", origin = { x = 8, y = 3, z = 0 }, material = "oni_cadia_core:glass" },
+	[4] = { username = "ruri", name = "るり", color = "#b5a4ff", skin = "#6850d9", origin = { x = 0, y = 3, z = -8 }, material = "oni_cadia_core:brick" },
+	[5] = { username = "hibiki", name = "ひびき", color = "#ff9a9a", skin = "#dc3e37", origin = { x = -12, y = 3, z = 8 }, material = "default:torch" },
+	[6] = { username = "kanae", name = "かなえ", color = "#9affdf", skin = "#1fae8a", origin = { x = 12, y = 3, z = -8 }, material = "default:dirt_with_grass" },
+	[7] = { username = "kimi", name = "きみ", color = "#f4a7ff", skin = "#c84ed9", origin = { x = -16, y = 3, z = -8 }, material = "oni_cadia_core:brick" },
+	[8] = { username = "qwen", name = "くえん", color = "#a7c7ff", skin = "#507bd8", origin = { x = 16, y = 3, z = 8 }, material = "default:stone" },
+	[9] = { username = "minimax", name = "みにま", color = "#fff4a7", skin = "#d8c33b", origin = { x = 0, y = 3, z = 16 }, material = "default:torch" },
 }
 
 local palette = {
@@ -52,6 +52,10 @@ local palette = {
 
 local function texture(color)
 	return "[fill:16x16:" .. color
+end
+
+local function character_texture(profile)
+	return "character.png^[colorize:" .. tostring(profile.skin or profile.color or "#ffffff") .. ":125"
 end
 
 minetest.register_item(":", {
@@ -611,6 +615,8 @@ end
 local function configure_agent_player(player, agent_id)
 	local profile = profile_for(agent_id)
 	player:set_nametag_attributes({ text = profile.name, color = profile.color })
+	player_api.set_model(player, "character.b3d")
+	player_api.set_textures(player, { character_texture(profile) })
 	player:set_hp(math.max(1, player:get_hp()))
 	minetest.set_player_privs(player:get_player_name(), { interact = true, shout = true })
 end
