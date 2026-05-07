@@ -873,8 +873,25 @@ end
 local function set_node(pos, name)
 	local target = copy_pos(pos)
 	minetest.load_area(target)
-	minetest.set_node(target, { name = name })
+	if name == "default:torch" then
+		minetest.set_node(target, { name = name, param2 = 1 })
+	else
+		minetest.set_node(target, { name = name })
+	end
 end
+
+minetest.register_lbm({
+	name = "oni_cadia_core:fix_floor_torches_v1",
+	nodenames = { "default:torch", "default:torch_ceiling" },
+	run_at_every_load = false,
+	action = function(pos, node)
+		local below = { x = pos.x, y = pos.y - 1, z = pos.z }
+		local below_def = minetest.registered_nodes[minetest.get_node(below).name]
+		if below_def and below_def.walkable ~= false then
+			minetest.set_node(pos, { name = "default:torch", param2 = 1 })
+		end
+	end,
+})
 
 local function forest_hash(x, z, seed)
 	local value = math.sin((x * 12.9898) + (z * 78.233) + (seed * 0.013)) * 43758.5453
@@ -1152,7 +1169,7 @@ local function build_house(base, node)
 	end
 	set_node({ x = base.x, y = base.y + 1, z = base.z - 2 }, "air")
 	set_node({ x = base.x, y = base.y + 2, z = base.z - 2 }, "air")
-	set_node({ x = base.x, y = base.y + 2, z = base.z }, "default:torch")
+	set_node({ x = base.x, y = base.y + 1, z = base.z }, "default:torch")
 end
 
 local function build_cost_for(shape, action)
