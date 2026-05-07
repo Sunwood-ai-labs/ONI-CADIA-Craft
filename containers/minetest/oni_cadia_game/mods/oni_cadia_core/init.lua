@@ -880,17 +880,30 @@ local function set_node(pos, name)
 	end
 end
 
+local function normalize_floor_torch(pos, node)
+	if (node.name ~= "default:torch" and node.name ~= "default:torch_ceiling") or node.param2 == 1 then
+		return
+	end
+	local below = { x = pos.x, y = pos.y - 1, z = pos.z }
+	local below_def = minetest.registered_nodes[minetest.get_node(below).name]
+	if below_def and below_def.walkable ~= false then
+		minetest.set_node(pos, { name = "default:torch", param2 = 1 })
+	end
+end
+
 minetest.register_lbm({
 	name = "oni_cadia_core:fix_floor_torches_v1",
 	nodenames = { "default:torch", "default:torch_ceiling" },
-	run_at_every_load = false,
-	action = function(pos, node)
-		local below = { x = pos.x, y = pos.y - 1, z = pos.z }
-		local below_def = minetest.registered_nodes[minetest.get_node(below).name]
-		if below_def and below_def.walkable ~= false then
-			minetest.set_node(pos, { name = "default:torch", param2 = 1 })
-		end
-	end,
+	run_at_every_load = true,
+	action = normalize_floor_torch,
+})
+
+minetest.register_abm({
+	label = "Fix ONI-CADIA floor torch orientation",
+	nodenames = { "default:torch", "default:torch_ceiling" },
+	interval = 5,
+	chance = 1,
+	action = normalize_floor_torch,
 })
 
 local function forest_hash(x, z, seed)
