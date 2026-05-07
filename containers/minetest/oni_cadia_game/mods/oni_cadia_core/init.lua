@@ -55,7 +55,7 @@ local function texture(color)
 end
 
 local function character_texture(profile)
-	return "character.png^[colorize:" .. tostring(profile.skin or profile.color or "#ffffff") .. ":125"
+	return "oni_cadia_skin_" .. tostring(profile.username or "agent") .. ".png"
 end
 
 minetest.register_item(":", {
