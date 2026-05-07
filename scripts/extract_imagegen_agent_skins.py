@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageOps
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +33,16 @@ def clean_alpha(img: Image.Image) -> Image.Image:
             if r > 226 and g > 226 and b > 226 and max(r, g, b) - min(r, g, b) < 14:
                 pixels[x, y] = (r, g, b, 0)
     return rgba
+
+
+def prepare_skin(cell: Image.Image) -> Image.Image:
+    cropped = cell.crop(content_bbox(cell)).convert("RGB")
+    skin = cropped.resize((64, 32), Image.Resampling.BOX)
+    skin = ImageOps.autocontrast(skin, cutoff=1)
+    skin = ImageEnhance.Color(skin).enhance(1.35)
+    skin = ImageEnhance.Contrast(skin).enhance(1.25)
+    skin = ImageEnhance.Sharpness(skin).enhance(1.8)
+    return clean_alpha(skin)
 
 
 def content_bbox(img: Image.Image) -> tuple[int, int, int, int]:
@@ -67,9 +77,7 @@ def main() -> None:
         for name in NAMES:
             source = INDIVIDUAL_SOURCE_DIR / f"{name}.png"
             cell = Image.open(source).convert("RGB")
-            cell = cell.crop(content_bbox(cell))
-            skin = cell.resize((64, 32), Image.Resampling.LANCZOS)
-            clean_alpha(skin).save(OUT_DIR / f"oni_cadia_skin_{name}.png")
+            prepare_skin(cell).save(OUT_DIR / f"oni_cadia_skin_{name}.png")
         return
 
     sheet = Image.open(SHEET_SOURCE).convert("RGB")
@@ -83,9 +91,7 @@ def main() -> None:
         right = sheet.width if col == 2 else (col + 1) * cell_w
         lower = sheet.height if row == 2 else (row + 1) * cell_h
         cell = sheet.crop((left, upper, right, lower))
-        cell = cell.crop(content_bbox(cell))
-        skin = cell.resize((64, 32), Image.Resampling.LANCZOS)
-        clean_alpha(skin).save(OUT_DIR / f"oni_cadia_skin_{name}.png")
+        prepare_skin(cell).save(OUT_DIR / f"oni_cadia_skin_{name}.png")
 
 
 if __name__ == "__main__":

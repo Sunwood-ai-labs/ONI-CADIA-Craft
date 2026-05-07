@@ -1236,6 +1236,50 @@ local function build_note_for(shape, action, resource)
 	return ""
 end
 
+local function set_agent_look(agent, yaw, pitch)
+	local player = player_for_agent(agent)
+	if player then
+		if player.set_look_horizontal then
+			player:set_look_horizontal(yaw)
+		end
+		if player.set_look_vertical then
+			player:set_look_vertical(pitch or 0)
+		end
+	end
+end
+
+local function setup_visual_check_stage(observer_id)
+	local base = { x = 0, y = 44, z = 0 }
+	minetest.set_timeofday(0.5)
+	minetest.load_area({ x = -14, y = base.y - 2, z = -4 }, { x = 14, y = base.y + 8, z = 14 })
+	for x = -12, 12 do
+		for z = -2, 12 do
+			set_node({ x = x, y = base.y, z = z }, "default:wood")
+			for clear_y = 1, 5 do
+				set_node({ x = x, y = base.y + clear_y, z = z }, "air")
+			end
+		end
+	end
+	for x = -12, 12, 4 do
+		set_node({ x = x, y = base.y + 1, z = -2 }, "default:torch")
+		set_node({ x = x, y = base.y + 1, z = 12 }, "default:torch")
+	end
+	local observer_key = agent_key(observer_id or 2)
+	for id, profile in pairs(profiles) do
+		local staged_agent = ensure_agent(id, profile.name)
+		local pos
+		if agent_key(id) == observer_key then
+			pos = { x = 0, y = base.y + 1.3, z = 10 }
+			set_agent_position(staged_agent, pos)
+			set_agent_look(staged_agent, math.pi, 0)
+		else
+			pos = { x = (id - 5) * 2, y = base.y + 1.3, z = 1 }
+			set_agent_position(staged_agent, pos)
+			set_agent_look(staged_agent, 0, 0)
+		end
+	end
+end
+
 local function apply_action(action)
 	local agent_id = tonumber(action.agent_id) or 1
 	local agent = ensure_agent(agent_id, action.agent_name)
@@ -1309,6 +1353,9 @@ local function apply_action(action)
 			set_agent_position(agent, standby)
 			civic_chat(agent, "建築しました: " .. shape .. " / " .. tostring(action.label or "district") .. " / 消費 " .. resource .. " x" .. tostring(cost) .. build_note_for(shape, action, resource))
 		end
+	elseif kind == "visual_check" then
+		setup_visual_check_stage(agent.id)
+		civic_chat(agent, "見た目確認用の明るい検証台に集合しました。")
 	end
 	processed_count = processed_count + 1
 	write_state()
